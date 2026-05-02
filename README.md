@@ -2,7 +2,7 @@
 
 **The trust layer between AI agents and your infrastructure.**
 
-> *"MCP solved transport. IRL solves trust."*
+> *"MCP solved transport. IRL makes agents accountable."*
 
 ---
 
