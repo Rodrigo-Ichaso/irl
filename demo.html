@@ -364,6 +364,7 @@ body::before {
   .stats-row  { grid-template-columns:repeat(2,1fr); }
   .flow-diagram { flex-direction:column; }
   .flow-arrow { transform:rotate(90deg); align-self:center; }
+  .evaluator-grid { grid-template-columns:1fr !important; }
 }
 </style>
 </head>
@@ -585,7 +586,7 @@ body::before {
        onmouseout="this.style.background='rgba(255,45,85,0.05)'">⛔ DENY — rotate all API keys</button>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">
+  <div class="evaluator-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:3px">
 
     <div style="background:var(--s1);border:1px solid var(--border);overflow:hidden">
       <div class="panel-header">
@@ -1086,20 +1087,24 @@ function loadExample(type) {
 // ── WASM LOADER ───────────────────────────────────────────────────────────────
 let wasmEvaluate = null;
 
+function setWasmStatus(text, color, border) {
+  const el = document.getElementById('wasm-status');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = color;
+  el.style.borderColor = border;
+}
+
 async function loadWasm() {
-  const status = document.getElementById('wasm-status');
   try {
     const { default: init, evaluate_json } = await import('./wasm/irl_core.js');
     await init();
     wasmEvaluate = evaluate_json;
-    document.getElementById('eval-wasm-badge').style.display = 'inline';
-    status.textContent = '✓ RUST WASM READY';
-    status.style.color = 'var(--green)';
-    status.style.borderColor = 'rgba(0,245,147,0.4)';
+    const badge = document.getElementById('eval-wasm-badge');
+    if (badge) badge.style.display = 'inline';
+    setWasmStatus('✓ RUST WASM READY', 'var(--green)', 'rgba(0,245,147,0.4)');
   } catch(e) {
-    status.textContent = '✗ WASM FAILED';
-    status.style.color = 'var(--red)';
-    status.style.borderColor = 'rgba(255,45,85,0.4)';
+    setWasmStatus('✗ WASM FAILED — ' + e.message.slice(0,40), 'var(--red)', 'rgba(255,45,85,0.4)');
     console.warn('WASM load failed:', e);
   }
 }
@@ -1117,7 +1122,9 @@ function evaluate() {
   box.style.display = 'none';
 
   if (!wasmEvaluate) {
-    appendLine('eval-output', 't-err', '✗ WASM engine not ready — wait for "✓ RUST WASM READY" badge below the button');
+    appendLine('eval-output', 't-err', '✗ WASM engine not ready');
+    appendLine('eval-output', 't-err', '  Wait for "✓ RUST WASM READY" next to the button.');
+    appendLine('eval-output', 't-err', '  If it shows "FAILED", the page needs a hard refresh (Ctrl+Shift+R).');
     return;
   }
 
@@ -1128,58 +1135,65 @@ function evaluate() {
     return;
   }
 
-  let r;
-  try { r = JSON.parse(wasmEvaluate(raw)); }
-  catch(e) {
-    appendLine('eval-output', 't-err', '✗ Engine error: ' + e.message);
-    return;
+  try {
+    let r;
+    try { r = JSON.parse(wasmEvaluate(raw)); }
+    catch(e) {
+      appendLine('eval-output', 't-err', '✗ Engine error: ' + e.message);
+      return;
+    }
+    if (r.error) { appendLine('eval-output', 't-err', '✗ ' + r.error); return; }
+
+    const ts = now();
+    const agent   = record.agent?.id || 'unknown';
+    const opType  = record.operation?.type || '?';
+    const resource = record.operation?.target_resource || '?';
+    const env     = record.operation?.target_environment || '?';
+
+    appendLine('eval-output', 't-out',  `[irl]  agent:       ${agent}`);
+    appendLine('eval-output', 't-out',  `[irl]  operation:   ${opType} → ${resource}`);
+    appendLine('eval-output', 't-out',  `[irl]  environment: ${env}`);
+    appendBlank('eval-output');
+    appendLine('eval-output', 't-warn', '[irl]  ── RUST RISK ENGINE (wasm) ──────────');
+    (r.risk?.reasons || []).forEach(reason => {
+      appendLine('eval-output', 't-warn', `[irl]       ⚑  ${reason}`);
+    });
+    appendBlank('eval-output');
+
+    const level = r.risk?.level || 'UNKNOWN';
+    const score = r.risk?.score ?? '?';
+    const scoreClass = level === 'CRITICAL' ? 't-err' : level === 'HIGH' ? 't-gate' : level === 'MEDIUM' ? 't-warn' : 't-ok';
+    appendLine('eval-output', scoreClass, `[irl]  SCORE:    ${score}/100 — ${level}`);
+    appendLine('eval-output', scoreClass, `[irl]  POLICY:   ${r.policy}`);
+    appendLine('eval-output', scoreClass, `[irl]  DECISION: ${r.decision}`);
+
+    const colors = { DENY:'var(--red)', GATE:'var(--orange)', 'LOG+ALLOW':'var(--yellow)', ALLOW:'var(--green)' };
+    const icons  = { DENY:'⛔', GATE:'⏸', 'LOG+ALLOW':'⚠', ALLOW:'✅' };
+    const col = colors[r.decision] || 'var(--text)';
+
+    box.style.display = 'block';
+    box.style.borderColor = col;
+    box.style.color = col;
+    box.textContent = `${icons[r.decision] || ''} ${r.decision}`;
+
+    dot.style.background = col;
+    badge.style.display = 'inline-block';
+    badge.textContent = `${score}/100 ${level}`;
+    badge.style.color = col;
+    badge.style.borderColor = col;
+
+    addAuditEntry({
+      time: ts, agent,
+      operation: `${opType.toUpperCase()} → ${resource}`,
+      environment: env,
+      riskLevel: level, score,
+      decision: r.decision,
+      reason: (r.risk?.reasons || []).slice(0,2).join(', ') || 'safe operation'
+    });
+  } catch(e) {
+    appendLine('eval-output', 't-err', '✗ Unexpected error: ' + e.message);
+    console.error('evaluate() crashed:', e);
   }
-  if (r.error) { appendLine('eval-output', 't-err', '✗ ' + r.error); return; }
-
-  const ts = now();
-  const agent = record.agent?.id || 'unknown';
-  const opType = record.operation?.type || '?';
-  const resource = record.operation?.target_resource || '?';
-  const env = record.operation?.target_environment || '?';
-
-  appendLine('eval-output', 't-out',  `[irl]  agent:       ${agent}`);
-  appendLine('eval-output', 't-out',  `[irl]  operation:   ${opType} → ${resource}`);
-  appendLine('eval-output', 't-out',  `[irl]  environment: ${env}`);
-  appendBlank('eval-output');
-  appendLine('eval-output', 't-warn', '[irl]  ── RUST RISK ENGINE (wasm) ──────────');
-  r.risk.reasons.forEach(reason => {
-    appendLine('eval-output', 't-warn', `[irl]       ⚑  ${reason}`);
-  });
-  appendBlank('eval-output');
-
-  const scoreClass = r.risk.level === 'CRITICAL' ? 't-err' : r.risk.level === 'HIGH' ? 't-gate' : r.risk.level === 'MEDIUM' ? 't-warn' : 't-ok';
-  appendLine('eval-output', scoreClass, `[irl]  SCORE:    ${r.risk.score}/100 — ${r.risk.level}`);
-  appendLine('eval-output', scoreClass, `[irl]  POLICY:   ${r.policy}`);
-  appendLine('eval-output', scoreClass, `[irl]  DECISION: ${r.decision}`);
-
-  const colors = { DENY:'var(--red)', GATE:'var(--orange)', 'LOG+ALLOW':'var(--yellow)', ALLOW:'var(--green)' };
-  const icons  = { DENY:'⛔', GATE:'⏸', 'LOG+ALLOW':'⚠', ALLOW:'✅' };
-  const col = colors[r.decision] || 'var(--text)';
-
-  box.style.display = 'block';
-  box.style.borderColor = col;
-  box.style.color = col;
-  box.textContent = `${icons[r.decision] || ''} ${r.decision}`;
-
-  dot.style.background = col;
-  badge.style.display = 'inline-block';
-  badge.textContent = `${r.risk.score}/100 ${r.risk.level}`;
-  badge.style.color = col;
-  badge.style.borderColor = col;
-
-  addAuditEntry({
-    time: ts, agent,
-    operation: `${opType.toUpperCase()} → ${resource}`,
-    environment: env,
-    riskLevel: r.risk.level, score: r.risk.score,
-    decision: r.decision,
-    reason: r.risk.reasons.slice(0,2).join(', ') || 'safe operation'
-  });
 }
 
 // Seed some demo audit entries
