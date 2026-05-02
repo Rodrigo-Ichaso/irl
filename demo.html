@@ -620,16 +620,22 @@ body::before {
     "rollback_plan": false
   }
 }</textarea>
-        <button onclick="evaluate()" style="
-          margin-top:10px;width:100%;padding:12px;
-          font-family:var(--mono);font-size:11px;letter-spacing:3px;
-          cursor:pointer;border:1px solid rgba(76,194,255,0.4);
-          background:rgba(76,194,255,0.05);color:var(--blue);
-          transition:all 0.2s;
-        " onmouseover="this.style.background='rgba(76,194,255,0.12)'"
-           onmouseout="this.style.background='rgba(76,194,255,0.05)'">
-          ▶ EVALUATE
-        </button>
+        <div style="display:flex;gap:6px;margin-top:10px;align-items:center">
+          <button id="btn-evaluate" onclick="evaluate()" style="
+            flex:1;padding:12px;
+            font-family:var(--mono);font-size:11px;letter-spacing:3px;
+            cursor:pointer;border:1px solid rgba(76,194,255,0.4);
+            background:rgba(76,194,255,0.05);color:var(--blue);
+            transition:all 0.2s;
+          " onmouseover="this.style.background='rgba(76,194,255,0.12)'"
+             onmouseout="this.style.background='rgba(76,194,255,0.05)'">
+            ▶ EVALUATE
+          </button>
+          <div id="wasm-status" style="
+            font-size:9px;letter-spacing:2px;padding:4px 10px;border:1px solid;
+            color:var(--text);border-color:var(--border);white-space:nowrap;
+          ">⏳ LOADING</div>
+        </div>
       </div>
     </div>
 
@@ -1081,13 +1087,20 @@ function loadExample(type) {
 let wasmEvaluate = null;
 
 async function loadWasm() {
+  const status = document.getElementById('wasm-status');
   try {
     const { default: init, evaluate_json } = await import('./wasm/irl_core.js');
     await init();
     wasmEvaluate = evaluate_json;
     document.getElementById('eval-wasm-badge').style.display = 'inline';
+    status.textContent = '✓ RUST WASM READY';
+    status.style.color = 'var(--green)';
+    status.style.borderColor = 'rgba(0,245,147,0.4)';
   } catch(e) {
-    console.warn('WASM load failed, no fallback available:', e);
+    status.textContent = '✗ WASM FAILED';
+    status.style.color = 'var(--red)';
+    status.style.borderColor = 'rgba(255,45,85,0.4)';
+    console.warn('WASM load failed:', e);
   }
 }
 
@@ -1104,7 +1117,7 @@ function evaluate() {
   box.style.display = 'none';
 
   if (!wasmEvaluate) {
-    appendLine('eval-output', 't-err', '✗ WASM engine loading — try again in a moment');
+    appendLine('eval-output', 't-err', '✗ WASM engine not ready — wait for "✓ RUST WASM READY" badge below the button');
     return;
   }
 
