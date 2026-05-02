@@ -1,6 +1,8 @@
 // irl-server/src/main.rs
 // IRL — Intent Record Language — HTTP server
 // Axum + Tokio + SQLite audit log + webhook human gate (Telegram fallback)
+//
+// Copyright (c) 2026 Rodrigo Ichaso <https://linkedin.com/in/ichasorodrigo>
 
 use axum::{
     extract::State,

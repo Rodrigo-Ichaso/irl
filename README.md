@@ -248,12 +248,14 @@ A security firewall that pauses for GC in a critical moment is unacceptable. Rus
 
 ## License
 
-`irl-core` and the IRL spec — Apache 2.0 (open protocol, maximum adoption)
+`irl-core` and the IRL spec — Apache 2.0
+
+Copyright (c) 2026 Rodrigo Ichaso. Attribution required on all distributions and derivative works.
 
 `irl-server` (IRL Shield) — BSL 1.1 (free for personal use, commercial license required for production business use)
 
 ---
 
-**Built by Rodrigo Ichaso — La Paz, Bolivia**
+**Built by [Rodrigo Ichaso](https://linkedin.com/in/ichasorodrigo) — La Paz, Bolivia**
 
 *Incident reference: PocketOS/Railway, April 24, 2026*

@@ -2,6 +2,9 @@
 // IRL — Intent Record Language
 // Core types, risk engine, and policy evaluator.
 //
+// Copyright (c) 2026 Rodrigo Ichaso <https://linkedin.com/in/ichasorodrigo>
+// Licensed under the Apache License, Version 2.0
+//
 // "MCP solved transport. IRL solves trust."
 // https://github.com/Rodrigo-Ichaso/irl
 
