@@ -1,0 +1,26 @@
+{
+  "irl_version": "0.1",
+  "agent": {
+    "id": "my-agent-01",
+    "model": "claude-sonnet-4-6",
+    "trust_level": "high"
+  },
+  "operation": {
+    "type": "read",
+    "target_resource": "table:users",
+    "target_environment": "staging",
+    "estimated_rows_affected": 10
+  },
+  "rationale": {
+    "stated_goal": "Check active user count for report",
+    "verified": true,
+    "alternatives_considered": ["query metrics endpoint", "check dashboard"]
+  },
+  "consequences": {
+    "reversible": true,
+    "data_loss_risk": "none",
+    "affects_backups": false,
+    "rollback_plan": true,
+    "downstream_services": []
+  }
+}

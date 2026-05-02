@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "irl-core",
+    "irl-server",
+]
+resolver = "2"

@@ -1,0 +1,27 @@
+{
+  "irl_version": "0.1",
+  "agent": {
+    "id": "cursor-agent-01",
+    "model": "claude-opus-4-6",
+    "trust_level": "medium",
+    "session_id": "ses_8f3k2m"
+  },
+  "operation": {
+    "type": "delete",
+    "target_resource": "volume:prod-db-main",
+    "target_environment": "production",
+    "estimated_rows_affected": -1
+  },
+  "rationale": {
+    "stated_goal": "Fix credential mismatch in staging",
+    "verified": false,
+    "alternatives_considered": []
+  },
+  "consequences": {
+    "reversible": false,
+    "data_loss_risk": "total",
+    "affects_backups": true,
+    "rollback_plan": false,
+    "downstream_services": ["billing", "api", "customers"]
+  }
+}

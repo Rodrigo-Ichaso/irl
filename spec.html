@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IRL — Intent Record Language</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700;800&family=Russo+One&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #060709;
+  --s1: #0D0F14;
+  --s2: #13161D;
+  --s3: #1A1E28;
+  --border: #1F2535;
+  --text: #8892A4;
+  --bright: #D4DCF0;
+  --dim: #3A4255;
+  --cyan: #00D4FF;
+  --green: #00FF9C;
+  --red: #FF2D55;
+  --orange: #FF6B00;
+  --yellow: #FFD600;
+  --purple: #BF5AF2;
+  --mono: 'JetBrains Mono', monospace;
+  --display: 'Russo One', sans-serif;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+/* GRID BACKGROUND */
+body::before {
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events:none;
+  z-index:0;
+}
+
+.page { position:relative; z-index:1; max-width:960px; margin:0 auto; padding:60px 20px 100px; }
+
+/* HERO */
+.hero {
+  margin-bottom: 60px;
+  animation: rise 0.8s ease both;
+}
+
+.hero-tag {
+  font-size:10px;
+  letter-spacing:4px;
+  color: var(--cyan);
+  border: 1px solid rgba(0,212,255,0.2);
+  display:inline-block;
+  padding:4px 12px;
+  margin-bottom:20px;
+}
+
+.hero-title {
+  font-family: var(--display);
+  font-size: clamp(52px,10vw,110px);
+  line-height:0.9;
+  color: var(--bright);
+  letter-spacing:-2px;
+  margin-bottom:8px;
+}
+
+.hero-title span { color: var(--cyan); }
+
+.hero-sub {
+  font-family: var(--display);
+  font-size: clamp(14px,2vw,20px);
+  color: var(--dim);
+  letter-spacing:2px;
+  margin-bottom:28px;
+}
+
+.hero-desc {
+  max-width:580px;
+  font-size:13px;
+  color: var(--text);
+  line-height:1.9;
+  border-left:2px solid var(--cyan);
+  padding-left:18px;
+}
+
+/* SECTION */
+.sec { margin-bottom:56px; animation: rise 0.6s ease both; }
+
+.sec-head {
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-bottom:24px;
+  padding-bottom:12px;
+  border-bottom:1px solid var(--border);
+}
+
+.sec-num { color: var(--dim); font-size:11px; letter-spacing:3px; }
+
+.sec-title {
+  font-family: var(--display);
+  font-size:20px;
+  color: var(--bright);
+  letter-spacing:1px;
+}
+
+.sec-pill {
+  margin-left:auto;
+  font-size:9px;
+  letter-spacing:2px;
+  padding:3px 10px;
+  border:1px solid;
+  text-transform:uppercase;
+}
+
+.pill-spec { color:var(--cyan); border-color:rgba(0,212,255,0.3); }
+.pill-code { color:var(--green); border-color:rgba(0,255,156,0.3); }
+.pill-live { color:var(--orange); border-color:rgba(255,107,0,0.3); }
+
+/* CODE BLOCK */
+.code-block {
+  background: var(--s1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--cyan);
+  padding:24px;
+  overflow-x:auto;
+  white-space:pre;
+  font-size:12px;
+  line-height:1.8;
+  margin-bottom:16px;
+  position:relative;
+}
+
+.code-block .c-key   { color: var(--cyan); }
+.code-block .c-str   { color: var(--green); }
+.code-block .c-num   { color: var(--orange); }
+.code-block .c-bool  { color: var(--purple); }
+.code-block .c-comm  { color: var(--dim); font-style:italic; }
+.code-block .c-risk0 { color: var(--green); }
+.code-block .c-risk1 { color: var(--yellow); }
+.code-block .c-risk2 { color: var(--orange); }
+.code-block .c-risk3 { color: var(--red); }
+
+.code-label {
+  position:absolute;
+  top:10px; right:14px;
+  font-size:9px;
+  letter-spacing:2px;
+  color: var(--dim);
+}
+
+/* FIELD TABLE */
+.field-table { width:100%; border-collapse:collapse; margin-bottom:16px; }
+.field-table th {
+  text-align:left;
+  font-size:10px;
+  letter-spacing:3px;
+  color: var(--dim);
+  padding:8px 12px;
+  border-bottom:1px solid var(--border);
+}
+.field-table td {
+  padding:10px 12px;
+  border-bottom:1px solid rgba(31,37,53,0.5);
+  font-size:12px;
+  vertical-align:top;
+}
+.field-table tr:hover td { background:rgba(255,255,255,0.01); }
+.f-name { color: var(--cyan); }
+.f-type { color: var(--purple); font-size:11px; }
+.f-req  { color: var(--red); font-size:10px; }
+.f-opt  { color: var(--dim); font-size:10px; }
+.f-desc { color: var(--text); }
+
+/* RISK MATRIX */
+.risk-grid {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:3px;
+  margin-bottom:16px;
+}
+.risk-cell {
+  padding:16px 14px;
+  background: var(--s1);
+  border:1px solid var(--border);
+  text-align:center;
+}
+.risk-name {
+  font-family: var(--display);
+  font-size:18px;
+  margin-bottom:6px;
+}
+.risk-desc { font-size:10px; color:var(--dim); line-height:1.6; }
+.risk-action { font-size:10px; margin-top:10px; padding:3px 8px; border:1px solid; display:inline-block; }
+
+.r-low .risk-name { color:var(--green); }
+.r-low .risk-action { color:var(--green); border-color:rgba(0,255,156,0.3); }
+.r-med .risk-name { color:var(--yellow); }
+.r-med .risk-action { color:var(--yellow); border-color:rgba(255,214,0,0.3); }
+.r-high .risk-name { color:var(--orange); }
+.r-high .risk-action { color:var(--orange); border-color:rgba(255,107,0,0.3); }
+.r-crit .risk-name { color:var(--red); }
+.r-crit .risk-action { color:var(--red); border-color:rgba(255,45,85,0.3); }
+
+/* SIMULATOR */
+.simulator {
+  background: var(--s1);
+  border:1px solid var(--border);
+  overflow:hidden;
+}
+
+.sim-bar {
+  background: var(--s2);
+  padding:10px 16px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  border-bottom:1px solid var(--border);
+}
+
+.sim-dot { width:10px; height:10px; border-radius:50%; }
+.sim-dot-r { background:#FF3B30; }
+.sim-dot-y { background:#FFCC00; }
+.sim-dot-g { background:#34C759; }
+
+.sim-title { font-size:11px; color:var(--dim); letter-spacing:2px; margin-left:4px; }
+
+.sim-body { display:grid; grid-template-columns:1fr 1fr; }
+
+.sim-input { padding:20px; border-right:1px solid var(--border); }
+.sim-output { padding:20px; }
+
+.sim-label {
+  font-size:10px;
+  letter-spacing:3px;
+  color:var(--dim);
+  margin-bottom:12px;
+  display:block;
+}
+
+.sim-textarea {
+  width:100%;
+  background: var(--bg);
+  border:1px solid var(--border);
+  color: var(--bright);
+  font-family: var(--mono);
+  font-size:11px;
+  padding:14px;
+  line-height:1.8;
+  resize:vertical;
+  min-height:280px;
+  outline:none;
+  transition:border-color 0.2s;
+}
+
+.sim-textarea:focus { border-color: var(--cyan); }
+
+.sim-btn {
+  width:100%;
+  background: rgba(0,212,255,0.08);
+  border:1px solid rgba(0,212,255,0.3);
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-size:12px;
+  padding:12px;
+  cursor:pointer;
+  letter-spacing:2px;
+  margin-top:12px;
+  transition:background 0.2s, border-color 0.2s;
+}
+
+.sim-btn:hover { background:rgba(0,212,255,0.15); border-color:var(--cyan); }
+
+.sim-result {
+  background: var(--bg);
+  border:1px solid var(--border);
+  min-height:280px;
+  padding:14px;
+  font-size:11px;
+  line-height:1.9;
+  overflow-y:auto;
+}
+
+.r-line { display:flex; gap:8px; margin-bottom:4px; }
+.r-ts { color:var(--dim); flex-shrink:0; }
+.r-pass { color:var(--green); }
+.r-fail { color:var(--red); }
+.r-warn { color:var(--yellow); }
+.r-info { color:var(--cyan); }
+.r-gate { color:var(--orange); }
+
+.verdict {
+  margin-top:16px;
+  padding:14px;
+  border:1px solid;
+  text-align:center;
+  font-family: var(--display);
+  font-size:20px;
+  letter-spacing:2px;
+  display:none;
+}
+
+.v-allow { border-color:var(--green); color:var(--green); background:rgba(0,255,156,0.05); }
+.v-gate  { border-color:var(--orange); color:var(--orange); background:rgba(255,107,0,0.05); }
+.v-deny  { border-color:var(--red); color:var(--red); background:rgba(255,45,85,0.05); }
+
+/* PYTHON */
+.py-block {
+  background: var(--s1);
+  border:1px solid var(--border);
+  border-left:3px solid var(--green);
+  padding:24px;
+  overflow-x:auto;
+  white-space:pre;
+  font-size:11.5px;
+  line-height:1.9;
+  margin-bottom:16px;
+}
+
+.py-kw   { color:#BF5AF2; }
+.py-fn   { color:#0A84FF; }
+.py-str  { color:#30D158; }
+.py-num  { color:#FF9F0A; }
+.py-comm { color:var(--dim); font-style:italic; }
+.py-cls  { color:#FFD60A; }
+.py-dec  { color:#FF375F; }
+
+/* ROADMAP */
+.roadmap { display:flex; flex-direction:column; gap:3px; }
+
+.rm-item {
+  display:grid;
+  grid-template-columns:140px 1fr;
+  gap:3px;
+}
+
+.rm-phase {
+  background:var(--s1);
+  border:1px solid var(--border);
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+
+.rm-week { font-size:9px; letter-spacing:2px; color:var(--dim); margin-bottom:4px; }
+.rm-name { font-family:var(--display); font-size:14px; color:var(--bright); }
+
+.rm-content {
+  background:var(--s1);
+  border:1px solid var(--border);
+  padding:16px 20px;
+}
+
+.rm-title { font-size:14px; color:var(--bright); font-weight:600; margin-bottom:6px; }
+.rm-list { list-style:none; }
+.rm-list li { color:var(--text); font-size:11px; padding:2px 0; }
+.rm-list li::before { content:'→ '; color:var(--cyan); }
+
+.rm-item:nth-child(1) .rm-name { color:var(--cyan); }
+.rm-item:nth-child(2) .rm-name { color:var(--green); }
+.rm-item:nth-child(3) .rm-name { color:var(--orange); }
+.rm-item:nth-child(4) .rm-name { color:var(--purple); }
+
+/* FOOTER */
+.footer {
+  border-top:1px solid var(--border);
+  padding-top:40px;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  flex-wrap:wrap;
+  gap:20px;
+}
+
+.footer-logo {
+  font-family:var(--display);
+  font-size:28px;
+  color:var(--cyan);
+  line-height:1;
+}
+
+.footer-meta { font-size:11px; color:var(--dim); line-height:1.8; text-align:right; }
+
+@keyframes rise {
+  from { opacity:0; transform:translateY(16px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+@media(max-width:640px) {
+  .sim-body { grid-template-columns:1fr; }
+  .sim-input { border-right:none; border-bottom:1px solid var(--border); }
+  .risk-grid { grid-template-columns:repeat(2,1fr); }
+  .rm-item { grid-template-columns:80px 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-tag">DRAFT SPEC v0.1 — OPEN PROTOCOL</div>
+  <div class="hero-title">IRL<span>.</span></div>
+  <div class="hero-sub">INTENT RECORD LANGUAGE</div>
+  <div class="hero-desc">
+    A formal language for AI agents to declare intent before acting.<br>
+    Not human-readable. Not machine code. Something new.<br><br>
+    MCP solved <em>transport</em>. IRL solves <em>trust</em>.
+  </div>
+</div>
+
+<!-- 01 PROBLEMA -->
+<div class="sec">
+  <div class="sec-head">
+    <span class="sec-num">01</span>
+    <span class="sec-title">WHY THIS EXISTS</span>
+    <span class="sec-pill pill-spec">CONTEXT</span>
+  </div>
+  <div class="code-block"><span class="c-comm"># April 24, 2026. PocketOS / Railway incident.
+# Cursor (Claude Opus 4.6) deleted production DB in 9 seconds.
+# The agent confessed: "I guessed instead of verifying."
+#
+# The root problem was NOT bad reasoning by the model.
+# The root problem was: infrastructure let bad reasoning execute.
+#
+# Current stack:
+#
+#   AGENT ──────────────────────→ INFRASTRUCTURE
+#   (probabilistic reasoning)     (deterministic execution)
+#
+# There is NOTHING in between that speaks both languages.
+# Prompts are not contracts. Comments are not enforcement.
+# MCP is transport, not trust.
+#
+# IRL proposes a new layer:
+#
+#   AGENT → [INTENT RECORD] → [FIREWALL] → INFRASTRUCTURE
+#
+# The agent must declare what it wants to do, why, and what the
+# consequences are — in a structured, verifiable, policy-evaluable
+# format — BEFORE any action is executed.</span></div>
+</div>
+
+<!-- 02 SPEC -->
+<div class="sec">
+  <div class="sec-head">
+    <span class="sec-num">02</span>
+    <span class="sec-title">INTENT RECORD SCHEMA</span>
+    <span class="sec-pill pill-spec">SPEC</span>
+  </div>
+
+  <div class="code-block"><span class="code-label">EXAMPLE — CRITICAL RISK (BLOCKED)</span><span class="c-key">{
+  "irl_version"</span>: <span class="c-str">"0.1"</span>,
+
+  <span class="c-comm">// WHO is acting</span>
+  <span class="c-key">"agent"</span>: {
+    <span class="c-key">"id"</span>: <span class="c-str">"cursor-agent-01"</span>,
+    <span class="c-key">"model"</span>: <span class="c-str">"claude-opus-4-6"</span>,
+    <span class="c-key">"trust_level"</span>: <span class="c-str">"medium"</span>,
+    <span class="c-key">"session_id"</span>: <span class="c-str">"ses_8f3k2m"</span>
+  },
+
+  <span class="c-comm">// WHAT the agent wants to do</span>
+  <span class="c-key">"operation"</span>: {
+    <span class="c-key">"type"</span>: <span class="c-str">"delete"</span>,
+    <span class="c-key">"target_resource"</span>: <span class="c-str">"volume:prod-db-main"</span>,
+    <span class="c-key">"target_environment"</span>: <span class="c-str">"production"</span>,
+    <span class="c-key">"scope"</span>: <span class="c-str">"permanent"</span>,
+    <span class="c-key">"estimated_rows_affected"</span>: <span class="c-num">-1</span>
+  },
+
+  <span class="c-comm">// WHY the agent thinks this is necessary</span>
+  <span class="c-key">"rationale"</span>: {
+    <span class="c-key">"stated_goal"</span>: <span class="c-str">"Fix credential mismatch in staging"</span>,
+    <span class="c-key">"assumed_safe"</span>: <span class="c-bool">true</span>,
+    <span class="c-key">"verified"</span>: <span class="c-bool">false</span>,
+    <span class="c-key">"alternatives_considered"</span>: []
+  },
+
+  <span class="c-comm">// WHAT happens if this goes wrong</span>
+  <span class="c-key">"consequences"</span>: {
+    <span class="c-key">"reversible"</span>: <span class="c-bool">false</span>,
+    <span class="c-key">"data_loss_risk"</span>: <span class="c-str">"total"</span>,
+    <span class="c-key">"affects_backups"</span>: <span class="c-bool">true</span>,
+    <span class="c-key">"downstream_services"</span>: [<span class="c-str">"billing"</span>, <span class="c-str">"api"</span>, <span class="c-str">"customers"</span>],
+    <span class="c-key">"rollback_plan"</span>: <span class="c-bool">false</span>
+  },
+
+  <span class="c-comm">// RISK score (computed, not self-reported)</span>
+  <span class="c-key">"risk"</span>: {
+    <span class="c-key">"level"</span>: <span class="c-risk3">"critical"</span>,
+    <span class="c-key">"score"</span>: <span class="c-num">97</span>,
+    <span class="c-key">"computed_by"</span>: <span class="c-str">"irl-firewall-v0.1"</span>
+  },
+
+  <span class="c-comm">// FIREWALL decision</span>
+  <span class="c-key">"verdict"</span>: {
+    <span class="c-key">"decision"</span>: <span class="c-str"><span class="c-risk3">"DENY"</span></span>,
+    <span class="c-key">"reason"</span>: <span class="c-str">"production delete + no rollback + affects backups"</span>,
+    <span class="c-key">"policy_triggered"</span>: <span class="c-str">"POL-003: no-destructive-production"</span>,
+    <span class="c-key">"timestamp"</span>: <span class="c-str">"2026-04-24T15:03:21Z"</span>
+  }
+}</div>
+
+  <table class="field-table">
+    <tr>
+      <th>FIELD</th><th>TYPE</th><th>REQ</th><th>DESCRIPTION</th>
+    </tr>
+    <tr><td class="f-name">agent.id</td><td class="f-type">string</td><td class="f-req">required</td><td class="f-desc">Unique agent identifier. Used for trust level lookup and rate limiting.</td></tr>
+    <tr><td class="f-name">agent.trust_level</td><td class="f-type">enum</td><td class="f-req">required</td><td class="f-desc">low / medium / high / verified. Higher trust = fewer gates.</td></tr>
+    <tr><td class="f-name">operation.type</td><td class="f-type">enum</td><td class="f-req">required</td><td class="f-desc">read / write / delete / execute / network / auth</td></tr>
+    <tr><td class="f-name">operation.target_environment</td><td class="f-type">enum</td><td class="f-req">required</td><td class="f-desc">local / staging / production. Cross-env ops trigger escalated policy.</td></tr>
+    <tr><td class="f-name">rationale.verified</td><td class="f-type">bool</td><td class="f-req">required</td><td class="f-desc">Did the agent verify its assumption before acting? false = risk +30pts.</td></tr>
+    <tr><td class="f-name">rationale.alternatives_considered</td><td class="f-type">array</td><td class="f-opt">optional</td><td class="f-desc">Non-destructive alternatives the agent evaluated. Empty array = risk +20pts.</td></tr>
+    <tr><td class="f-name">consequences.reversible</td><td class="f-type">bool</td><td class="f-req">required</td><td class="f-desc">false + production = automatic GATE or DENY depending on trust level.</td></tr>
+    <tr><td class="f-name">consequences.rollback_plan</td><td class="f-type">bool</td><td class="f-req">required</td><td class="f-desc">false on destructive ops = risk escalation. Agent must provide snapshot_id.</td></tr>
+    <tr><td class="f-name">risk.level</td><td class="f-type">enum</td><td class="f-opt">computed</td><td class="f-desc">Computed by firewall, not self-reported by agent. Agent cannot manipulate this.</td></tr>
+  </table>
+</div>
+
+<!-- 03 RISK -->
+<div class="sec">
+  <div class="sec-head">
+    <span class="sec-num">03</span>
+    <span class="sec-title">RISK MATRIX</span>
+    <span class="sec-pill pill-spec">POLICY</span>
+  </div>
+  <div class="risk-grid">
+    <div class="risk-cell r-low">
+      <div class="risk-name">LOW</div>
+      <div class="risk-desc">Read-only ops. Staging only. Reversible. Verified assumption.</div>
+      <div class="risk-action">AUTO-ALLOW</div>
+    </div>
+    <div class="risk-cell r-med">
+      <div class="risk-name">MEDIUM</div>
+      <div class="risk-desc">Write ops. Staging. Or read-only in production. No data loss risk.</div>
+      <div class="risk-action">LOG + ALLOW</div>
+    </div>
+    <div class="risk-cell r-high">
+      <div class="risk-name">HIGH</div>
+      <div class="risk-desc">Write in production. Or delete in staging. Reversible but impactful.</div>
+      <div class="risk-action">HUMAN GATE</div>
+    </div>
+    <div class="risk-cell r-crit">
+      <div class="risk-name">CRITICAL</div>
+      <div class="risk-desc">Delete in production. Irreversible. No rollback. Affects backups.</div>
+      <div class="risk-action">AUTO-DENY</div>
+    </div>
+  </div>
+</div>
+
+<!-- 04 SIMULATOR -->
+<div class="sec">
+  <div class="sec-head">
+    <span class="sec-num">04</span>
+    <span class="sec-title">FIREWALL SIMULATOR</span>
+    <span class="sec-pill pill-live">LIVE</span>
+  </div>
+
+  <div class="simulator">
+    <div class="sim-bar">
+      <div class="sim-dot sim-dot-r"></div>
+      <div class="sim-dot sim-dot-y"></div>
+      <div class="sim-dot sim-dot-g"></div>
+      <div class="sim-title">IRL FIREWALL — POLICY ENGINE v0.1</div>
+    </div>
+    <div class="sim-body">
+      <div class="sim-input">
+        <span class="sim-label">// INTENT RECORD INPUT (JSON)</span>
+        <textarea class="sim-textarea" id="irl-input">{
+  "irl_version": "0.1",
+  "agent": {
+    "id": "my-agent-01",
+    "trust_level": "medium"
+  },
+  "operation": {
+    "type": "delete",
+    "target_resource": "volume:prod-db-main",
+    "target_environment": "production"
+  },
+  "rationale": {
+    "stated_goal": "Fix credential mismatch",
+    "verified": false,
+    "alternatives_considered": []
+  },
+  "consequences": {
+    "reversible": false,
+    "data_loss_risk": "total",
+    "affects_backups": true,
+    "rollback_plan": false
+  }
+}</textarea>
+        <button class="sim-btn" onclick="evaluate()">▶ EVALUATE INTENT RECORD</button>
+      </div>
+      <div class="sim-output">
+        <span class="sim-label">// FIREWALL OUTPUT</span>
+        <div class="sim-result" id="sim-result">
+          <div class="r-line"><span class="r-ts">00:00:00</span><span class="r-info">IRL Firewall ready. Paste an intent record and evaluate.</span></div>
+        </div>
+        <div class="verdict" id="verdict"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 05 PYTHON MVP -->
+<div class="sec">
+  <div class="sec-head">
+    <span class="sec-num">05</span>
+    <span class="sec-title">PYTHON MVP — DEPLOYABLE HOY</span>
+    <span class="sec-pill pill-code">CODE</span>
+  </div>
+
+  <div class="py-block"><span class="py-comm"># irl_firewall.py — MVP mínimo, deployable en Proxmox hoy
+# pip install fastapi uvicorn httpx pydantic</span>
+
+<span class="py-kw">from</span> fastapi <span class="py-kw">import</span> FastAPI, HTTPException
+<span class="py-kw">from</span> pydantic <span class="py-kw">import</span> BaseModel
+<span class="py-kw">from</span> typing <span class="py-kw">import</span> Optional, List
+<span class="py-kw">import</span> httpx, asyncio, logging
+<span class="py-kw">from</span> datetime <span class="py-kw">import</span> datetime
+
+app = <span class="py-fn">FastAPI</span>(title=<span class="py-str">"IRL Firewall"</span>, version=<span class="py-str">"0.1"</span>)
+
+<span class="py-comm"># ── MODELS ──────────────────────────────────────────────</span>
+
+<span class="py-kw">class</span> <span class="py-cls">AgentInfo</span>(BaseModel):
+    id: str
+    trust_level: str  <span class="py-comm"># low / medium / high / verified</span>
+
+<span class="py-kw">class</span> <span class="py-cls">Operation</span>(BaseModel):
+    type: str          <span class="py-comm"># read/write/delete/execute</span>
+    target_resource: str
+    target_environment: str  <span class="py-comm"># staging / production</span>
+
+<span class="py-kw">class</span> <span class="py-cls">Rationale</span>(BaseModel):
+    stated_goal: str
+    verified: bool
+    alternatives_considered: List[str] = []
+
+<span class="py-kw">class</span> <span class="py-cls">Consequences</span>(BaseModel):
+    reversible: bool
+    data_loss_risk: str = <span class="py-str">"none"</span>
+    affects_backups: bool = <span class="py-str">False</span>
+    rollback_plan: bool = <span class="py-str">False</span>
+
+<span class="py-kw">class</span> <span class="py-cls">IntentRecord</span>(BaseModel):
+    irl_version: str
+    agent: AgentInfo
+    operation: Operation
+    rationale: Rationale
+    consequences: Consequences
+
+<span class="py-comm"># ── RISK ENGINE ─────────────────────────────────────────</span>
+
+<span class="py-kw">def</span> <span class="py-fn">compute_risk</span>(ir: IntentRecord) -> <span class="py-fn">dict</span>:
+    score = <span class="py-num">0</span>
+    reasons = []
+
+    <span class="py-comm"># Operation risk</span>
+    op_scores = {<span class="py-str">"read"</span>:<span class="py-num">0</span>, <span class="py-str">"write"</span>:<span class="py-num">20</span>, <span class="py-str">"delete"</span>:<span class="py-num">50</span>, <span class="py-str">"execute"</span>:<span class="py-num">30</span>}
+    score += op_scores.<span class="py-fn">get</span>(ir.operation.type, <span class="py-num">40</span>)
+
+    <span class="py-comm"># Environment risk</span>
+    <span class="py-kw">if</span> ir.operation.target_environment == <span class="py-str">"production"</span>:
+        score += <span class="py-num">30</span>
+        reasons.<span class="py-fn">append</span>(<span class="py-str">"production environment"</span>)
+
+    <span class="py-comm"># Reversibility</span>
+    <span class="py-kw">if</span> <span class="py-kw">not</span> ir.consequences.reversible:
+        score += <span class="py-num">25</span>
+        reasons.<span class="py-fn">append</span>(<span class="py-str">"irreversible operation"</span>)
+
+    <span class="py-comm"># Verification</span>
+    <span class="py-kw">if</span> <span class="py-kw">not</span> ir.rationale.verified:
+        score += <span class="py-num">20</span>
+        reasons.<span class="py-fn">append</span>(<span class="py-str">"assumption not verified"</span>)
+
+    <span class="py-comm"># No alternatives considered</span>
+    <span class="py-kw">if</span> <span class="py-kw">not</span> ir.rationale.alternatives_considered:
+        score += <span class="py-num">15</span>
+        reasons.<span class="py-fn">append</span>(<span class="py-str">"no alternatives considered"</span>)
+
+    <span class="py-comm"># Backup impact</span>
+    <span class="py-kw">if</span> ir.consequences.affects_backups:
+        score += <span class="py-num">30</span>
+        reasons.<span class="py-fn">append</span>(<span class="py-str">"affects backup systems"</span>)
+
+    <span class="py-comm"># No rollback</span>
+    <span class="py-kw">if</span> <span class="py-kw">not</span> ir.consequences.rollback_plan <span class="py-kw">and</span> ir.operation.type == <span class="py-str">"delete"</span>:
+        score += <span class="py-num">20</span>
+        reasons.<span class="py-fn">append</span>(<span class="py-str">"no rollback plan defined"</span>)
+
+    score = <span class="py-fn">min</span>(score, <span class="py-num">100</span>)
+    level = <span class="py-str">"low"</span> <span class="py-kw">if</span> score < <span class="py-num">25</span> <span class="py-kw">else</span> <span class="py-str">"medium"</span> <span class="py-kw">if</span> score < <span class="py-num">50</span> <span class="py-kw">else</span> <span class="py-str">"high"</span> <span class="py-kw">if</span> score < <span class="py-num">75</span> <span class="py-kw">else</span> <span class="py-str">"critical"</span>
+
+    <span class="py-kw">return</span> {<span class="py-str">"score"</span>: score, <span class="py-str">"level"</span>: level, <span class="py-str">"reasons"</span>: reasons}
+
+<span class="py-comm"># ── POLICY ENGINE ────────────────────────────────────────</span>
+
+<span class="py-kw">def</span> <span class="py-fn">evaluate_policy</span>(ir: IntentRecord, risk: <span class="py-fn">dict</span>) -> <span class="py-fn">dict</span>:
+    level = risk[<span class="py-str">"level"</span>]
+
+    <span class="py-kw">if</span> level == <span class="py-str">"critical"</span>:
+        <span class="py-kw">return</span> {<span class="py-str">"decision"</span>: <span class="py-str">"DENY"</span>, <span class="py-str">"policy"</span>: <span class="py-str">"POL-003"</span>}
+
+    <span class="py-kw">if</span> level == <span class="py-str">"high"</span>:
+        <span class="py-kw">return</span> {<span class="py-str">"decision"</span>: <span class="py-str">"GATE"</span>, <span class="py-str">"policy"</span>: <span class="py-str">"POL-002"</span>}
+
+    <span class="py-kw">if</span> level == <span class="py-str">"medium"</span>:
+        <span class="py-kw">return</span> {<span class="py-str">"decision"</span>: <span class="py-str">"LOG_ALLOW"</span>, <span class="py-str">"policy"</span>: <span class="py-str">"POL-001"</span>}
+
+    <span class="py-kw">return</span> {<span class="py-str">"decision"</span>: <span class="py-str">"ALLOW"</span>, <span class="py-str">"policy"</span>: <span class="py-str">"POL-000"</span>}
+
+<span class="py-comm"># ── HUMAN GATE (Telegram) ────────────────────────────────</span>
+
+<span class="py-kw">async def</span> <span class="py-fn">send_telegram_gate</span>(ir: IntentRecord, risk: <span class="py-fn">dict</span>):
+    <span class="py-comm"># Configure: TELEGRAM_TOKEN and CHAT_ID in env vars</span>
+    msg = <span class="py-fn">f</span><span class="py-str">"""🔴 IRL FIREWALL — HUMAN GATE REQUIRED
+Agent: {ir.agent.id}
+Action: {ir.operation.type} → {ir.operation.target_resource}
+Env: {ir.operation.target_environment.upper()}
+Risk: {risk['level'].upper()} ({risk['score']}/100)
+Reasons: {', '.join(risk['reasons'])}
+
+Approve? Reply APPROVE or DENY within 5 minutes.
+Silence = auto-DENY."""</span>
+    <span class="py-comm"># httpx.post(telegram_api_url, json={...})</span>
+    logging.<span class="py-fn">warning</span>(<span class="py-fn">f</span><span class="py-str">"GATE REQUIRED: {msg}"</span>)
+
+<span class="py-comm"># ── API ENDPOINT ─────────────────────────────────────────</span>
+
+<span class="py-dec">@app.post</span>(<span class="py-str">"/evaluate"</span>)
+<span class="py-kw">async def</span> <span class="py-fn">evaluate_intent</span>(ir: IntentRecord):
+    risk    = <span class="py-fn">compute_risk</span>(ir)
+    verdict = <span class="py-fn">evaluate_policy</span>(ir, risk)
+
+    <span class="py-kw">if</span> verdict[<span class="py-str">"decision"</span>] == <span class="py-str">"GATE"</span>:
+        <span class="py-kw">await</span> <span class="py-fn">send_telegram_gate</span>(ir, risk)
+
+    <span class="py-kw">return</span> {
+        <span class="py-str">"agent"</span>: ir.agent.id,
+        <span class="py-str">"operation"</span>: ir.operation.type,
+        <span class="py-str">"risk"</span>: risk,
+        <span class="py-str">"verdict"</span>: verdict,
+        <span class="py-str">"timestamp"</span>: datetime.<span class="py-fn">utcnow</span>().<span class="py-fn">isoformat</span>()
+    }
+
+<span class="py-comm"># uvicorn irl_firewall:app --host 0.0.0.0 --port 8800</span></div>
+</div>
+
+<!-- 06 ROADMAP -->
+<div class="sec">
+  <div class="sec-head">
+    <span class="sec-num">06</span>
+    <span class="sec-title">BUILD ROADMAP</span>
+    <span class="sec-pill pill-spec">PLAN</span>
+  </div>
+  <div class="roadmap">
+    <div class="rm-item">
+      <div class="rm-phase">
+        <div class="rm-week">WEEK 1</div>
+        <div class="rm-name">CORE</div>
+      </div>
+      <div class="rm-content">
+        <div class="rm-title">Schema + Risk Engine + API</div>
+        <ul class="rm-list">
+          <li>Pydantic schema de IntentRecord</li>
+          <li>Risk scoring engine (reglas determinísticas)</li>
+          <li>FastAPI endpoint /evaluate</li>
+          <li>Log inmutable append-only</li>
+          <li>Deploy en Proxmox VM</li>
+        </ul>
+      </div>
+    </div>
+    <div class="rm-item">
+      <div class="rm-phase">
+        <div class="rm-week">WEEK 2</div>
+        <div class="rm-name">GATE</div>
+      </div>
+      <div class="rm-content">
+        <div class="rm-title">Human Gate + Telegram + Dashboard</div>
+        <ul class="rm-list">
+          <li>Telegram bot para aprobar/denegar en tiempo real</li>
+          <li>Timeout auto-deny (5 minutos de silencio = no)</li>
+          <li>Dashboard HTML de operaciones en curso</li>
+          <li>Circuit breaker por velocidad de operaciones</li>
+        </ul>
+      </div>
+    </div>
+    <div class="rm-item">
+      <div class="rm-phase">
+        <div class="rm-week">WEEK 3</div>
+        <div class="rm-name">MCP</div>
+      </div>
+      <div class="rm-content">
+        <div class="rm-title">MCP Server Wrapper</div>
+        <ul class="rm-list">
+          <li>IRL Firewall como MCP server</li>
+          <li>Cualquier agente MCP-compatible pasa por el firewall</li>
+          <li>Tool schema enforcement — si no está declarado, no existe</li>
+          <li>Compatible con Claude, Cursor, n8n agents</li>
+        </ul>
+      </div>
+    </div>
+    <div class="rm-item">
+      <div class="rm-phase">
+        <div class="rm-week">MONTH 2</div>
+        <div class="rm-name">PRODUCT</div>
+      </div>
+      <div class="rm-content">
+        <div class="rm-title">Alciom Shield — Producto vendible</div>
+        <ul class="rm-list">
+          <li>UI de configuración de políticas sin código</li>
+          <li>Reporte mensual de operaciones auditadas</li>
+          <li>Caso de uso documentado post-Railway</li>
+          <li>$2,500 setup + $400/mes — primer cliente en Upwork</li>
+          <li>Publicar spec IRL en GitHub como open protocol</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="footer-logo">ALCIOM<br>SHIELD</div>
+  <div class="footer-meta">
+    IRL Spec v0.1 — Open Protocol Draft<br>
+    Built by Alciom Cognitive — La Paz, Bolivia<br>
+    "MCP solved transport. IRL solves trust."
+  </div>
+</div>
+
+</div>
+
+<script>
+function ts() {
+  return new Date().toTimeString().split(' ')[0];
+}
+
+function log(container, cls, msg) {
+  const d = document.createElement('div');
+  d.className = 'r-line';
+  d.innerHTML = `<span class="r-ts">${ts()}</span><span class="${cls}">${msg}</span>`;
+  container.appendChild(d);
+}
+
+function evaluate() {
+  const input = document.getElementById('irl-input').value;
+  const out = document.getElementById('sim-result');
+  const verdict = document.getElementById('verdict');
+  out.innerHTML = '';
+  verdict.style.display = 'none';
+  verdict.className = 'verdict';
+
+  let ir;
+  try {
+    ir = JSON.parse(input);
+  } catch(e) {
+    log(out, 'r-fail', '✗ JSON parse error: ' + e.message);
+    return;
+  }
+
+  log(out, 'r-info', '── IRL FIREWALL v0.1 ─────────────────');
+  log(out, 'r-info', `▶ Evaluating intent record from agent: ${ir.agent?.id || 'unknown'}`);
+
+  setTimeout(() => {
+    // Risk computation
+    let score = 0;
+    const reasons = [];
+
+    const opScores = { read:0, write:20, delete:50, execute:30 };
+    const op = ir.operation?.type || 'unknown';
+    score += opScores[op] || 40;
+
+    if (ir.operation?.target_environment === 'production') {
+      score += 30;
+      reasons.push('production environment');
+      log(out, 'r-warn', `⚠ Target environment: PRODUCTION (+30pts)`);
+    } else {
+      log(out, 'r-pass', `✓ Target environment: ${ir.operation?.target_environment || 'unknown'}`);
+    }
+
+    if (op === 'delete') log(out, 'r-warn', `⚠ Operation type: DELETE (+50pts)`);
+    else log(out, 'r-pass', `✓ Operation type: ${op}`);
+
+    if (ir.consequences?.reversible === false) {
+      score += 25; reasons.push('irreversible');
+      log(out, 'r-fail', '✗ Reversible: FALSE (+25pts)');
+    } else {
+      log(out, 'r-pass', '✓ Reversible: true');
+    }
+
+    if (ir.rationale?.verified === false) {
+      score += 20; reasons.push('assumption not verified');
+      log(out, 'r-fail', '✗ Assumption verified: FALSE (+20pts)');
+    } else {
+      log(out, 'r-pass', '✓ Assumption verified');
+    }
+
+    const alts = ir.rationale?.alternatives_considered || [];
+    if (alts.length === 0) {
+      score += 15; reasons.push('no alternatives considered');
+      log(out, 'r-warn', '⚠ Alternatives considered: NONE (+15pts)');
+    } else {
+      log(out, 'r-pass', `✓ Alternatives considered: ${alts.length}`);
+    }
+
+    if (ir.consequences?.affects_backups === true) {
+      score += 30; reasons.push('affects backups');
+      log(out, 'r-fail', '✗ Affects backups: TRUE (+30pts)');
+    } else {
+      log(out, 'r-pass', '✓ Backups: not affected');
+    }
+
+    if (ir.consequences?.rollback_plan === false && op === 'delete') {
+      score += 20; reasons.push('no rollback plan');
+      log(out, 'r-fail', '✗ Rollback plan: NONE (+20pts)');
+    }
+
+    score = Math.min(score, 100);
+    const level = score < 25 ? 'LOW' : score < 50 ? 'MEDIUM' : score < 75 ? 'HIGH' : 'CRITICAL';
+    const levelClass = { LOW:'r-pass', MEDIUM:'r-warn', HIGH:'r-gate', CRITICAL:'r-fail' }[level];
+
+    log(out, 'r-info', '── RISK ASSESSMENT ───────────────────');
+    log(out, levelClass, `▶ Risk Score: ${score}/100 — ${level}`);
+
+    setTimeout(() => {
+      log(out, 'r-info', '── POLICY ENGINE ─────────────────────');
+
+      let decision, pol, vClass;
+      if (level === 'CRITICAL') {
+        decision = 'DENY'; pol = 'POL-003: no-destructive-production';
+        vClass = 'v-deny';
+        log(out, 'r-fail', '✗ POL-003 triggered: CRITICAL risk auto-denied');
+        log(out, 'r-fail', `✗ Reason: ${reasons.join(' + ')}`);
+      } else if (level === 'HIGH') {
+        decision = 'GATE'; pol = 'POL-002: human-approval-required';
+        vClass = 'v-gate';
+        log(out, 'r-gate', '⏸ POL-002 triggered: HUMAN GATE required');
+        log(out, 'r-gate', '⏸ Sending Telegram notification to operator...');
+        log(out, 'r-gate', '⏸ Timeout: 5 minutes → auto-DENY');
+      } else if (level === 'MEDIUM') {
+        decision = 'LOG + ALLOW'; pol = 'POL-001: log-and-proceed';
+        vClass = 'v-allow';
+        log(out, 'r-warn', '⚠ POL-001: logged and allowed with monitoring');
+      } else {
+        decision = 'ALLOW'; pol = 'POL-000: auto-allow';
+        vClass = 'v-allow';
+        log(out, 'r-pass', '✓ POL-000: low risk, auto-allowed');
+      }
+
+      log(out, 'r-info', '── VERDICT ───────────────────────────');
+      log(out, levelClass, `▶ DECISION: ${decision}`);
+      log(out, 'r-info', `▶ Policy: ${pol}`);
+      log(out, 'r-info', `▶ Timestamp: ${new Date().toISOString()}`);
+
+      verdict.textContent = decision;
+      verdict.classList.add(vClass);
+      verdict.style.display = 'block';
+    }, 600);
+  }, 400);
+}
+</script>
+</body>
+</html>

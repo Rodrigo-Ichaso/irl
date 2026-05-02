@@ -1,0 +1,12 @@
+[package]
+name = "irl-core"
+version = "0.1.0"
+edition = "2021"
+description = "IRL — Intent Record Language core types and risk engine"
+license = "Apache-2.0"
+
+[dependencies]
+serde = { version = "=1.0.197", features = ["derive"] }
+serde_json = "=1.0.114"
+chrono = { version = "=0.4.34", features = ["serde"] }
+uuid = { version = "=1.7.0", features = ["v4", "serde"] }
