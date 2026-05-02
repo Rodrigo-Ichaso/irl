@@ -77,6 +77,44 @@ curl http://localhost:8800/audit
 
 ---
 
+## MCP Integration
+
+Connect any MCP-compatible agent (Claude Code, Cursor, n8n) so it evaluates intent through IRL before acting.
+
+```bash
+# Build the MCP server
+cd irl-mcp && npm install && npm run build
+```
+
+Add to your agent's MCP config (`.mcp.json` for Claude Code):
+
+```json
+{
+  "mcpServers": {
+    "irl": {
+      "command": "node",
+      "args": ["/path/to/irl/irl-mcp/dist/index.js"],
+      "env": {
+        "IRL_URL": "http://your-server:8800",
+        "IRL_AGENT_ID": "my-agent-01"
+      }
+    }
+  }
+}
+```
+
+The agent now has access to `evaluate_intent`. Add this to your system prompt or `CLAUDE.md`:
+
+```
+Before any risky action (delete, production write, external network call, auth change):
+call evaluate_intent and wait for the verdict.
+DENY → stop. GATE → wait for human. ALLOW → proceed.
+```
+
+The agent fills in what it wants to do. IRL generates the risk score deterministically — the agent cannot influence the verdict.
+
+---
+
 ## Trust Registry
 
 Agents cannot self-declare their trust level. The server maintains a registry — unregistered agents always get `low` trust regardless of what they claim.
@@ -257,7 +295,7 @@ systemctl enable --now irl-server
 ## Roadmap
 
 - [x] v0.1 — Core types, risk engine, policy engine, HTTP server, audit log, Telegram gate
-- [ ] v0.2 — MCP server wrapper (any MCP-compatible agent goes through IRL automatically)
+- [x] v0.2 — MCP server wrapper + trust registry (agents cannot self-declare trust level)
 - [ ] v0.3 — Policy config file (define rules without recompiling)
 - [ ] v0.4 — Rollback snapshots API
 - [ ] v1.0 — Agent identity (DID) + signed intent records
