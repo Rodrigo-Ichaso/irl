@@ -160,15 +160,16 @@ pub fn compute_risk(ir: &IntentRecord) -> RiskAssessment {
     let mut reasons: Vec<String> = Vec::new();
 
     // Operation type base score
-    let op_score = match ir.operation.op_type {
-        OperationType::Read    => 0,
-        OperationType::Write   => 20,
-        OperationType::Execute => 30,
-        OperationType::Network => 25,
-        OperationType::Auth    => 35,
-        OperationType::Delete  => 50,
+    let (op_score, op_reason) = match ir.operation.op_type {
+        OperationType::Read    => (0,  None),
+        OperationType::Write   => (20, Some("write operation")),
+        OperationType::Execute => (30, Some("execute operation")),
+        OperationType::Network => (25, Some("network call to external service")),
+        OperationType::Auth    => (35, Some("auth/credential operation")),
+        OperationType::Delete  => (50, Some("delete operation")),
     };
     score += op_score;
+    if let Some(r) = op_reason { reasons.push(r.into()); }
 
     // Environment multiplier
     if ir.operation.target_environment == Environment::Production {
