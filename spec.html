@@ -603,7 +603,12 @@ body::before {
     "rollback_plan": false
   }
 }</textarea>
-        <button class="sim-btn" onclick="evaluate()">▶ EVALUATE INTENT RECORD</button>
+        <button class="sim-btn" onclick="runIrlEval()">▶ EVALUATE INTENT RECORD</button>
+        <div id="spec-wasm-status" style="
+          margin-top:8px;font-size:9px;letter-spacing:2px;
+          padding:4px 10px;border:1px solid var(--border);
+          color:var(--dim);display:inline-block;
+        ">⏳ LOADING RUST ENGINE</div>
       </div>
       <div class="sim-output">
         <span class="sim-label">// FIREWALL OUTPUT</span>
@@ -801,7 +806,33 @@ function log(container, cls, msg) {
   container.appendChild(d);
 }
 
-function evaluate() {
+// ── WASM ENGINE ───────────────────────────────────────────────────────────────
+let wasmEvaluate = null;
+
+function setSpecWasmStatus(text, color, border) {
+  const el = document.getElementById('spec-wasm-status');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = color;
+  el.style.borderColor = border;
+}
+
+async function loadWasm() {
+  try {
+    const { default: init, evaluate_json } = await import('./wasm/irl_core.js');
+    await init();
+    wasmEvaluate = evaluate_json;
+    setSpecWasmStatus('✓ RUST WASM READY', 'var(--green)', 'rgba(0,255,156,0.4)');
+  } catch(e) {
+    setSpecWasmStatus('✗ WASM FAILED — reload page', 'var(--red)', 'rgba(255,45,85,0.4)');
+    console.warn('WASM load failed:', e);
+  }
+}
+
+loadWasm();
+
+// ── EVALUATOR ─────────────────────────────────────────────────────────────────
+function runIrlEval() {
   const input = document.getElementById('irl-input').value;
   const out = document.getElementById('sim-result');
   const verdict = document.getElementById('verdict');
@@ -809,113 +840,46 @@ function evaluate() {
   verdict.style.display = 'none';
   verdict.className = 'verdict';
 
-  let ir;
-  try {
-    ir = JSON.parse(input);
-  } catch(e) {
-    log(out, 'r-fail', '✗ JSON parse error: ' + e.message);
+  if (!wasmEvaluate) {
+    log(out, 'r-fail', '✗ Rust engine not ready — wait for "✓ RUST WASM READY"');
     return;
   }
 
-  log(out, 'r-info', '── IRL FIREWALL v0.1 ─────────────────');
-  log(out, 'r-info', `▶ Evaluating intent record from agent: ${ir.agent?.id || 'unknown'}`);
+  let ir;
+  try { ir = JSON.parse(input); }
+  catch(e) { log(out, 'r-fail', '✗ JSON parse error: ' + e.message); return; }
 
-  setTimeout(() => {
-    // Risk computation
-    let score = 0;
-    const reasons = [];
+  let r;
+  try { r = JSON.parse(wasmEvaluate(input)); }
+  catch(e) { log(out, 'r-fail', '✗ Engine error: ' + e.message); return; }
+  if (r.error) { log(out, 'r-fail', '✗ ' + r.error); return; }
 
-    const opScores = { read:0, write:20, delete:50, execute:30 };
-    const op = ir.operation?.type || 'unknown';
-    score += opScores[op] || 40;
+  const agent = ir.agent?.id || 'unknown';
+  const op    = ir.operation?.type || '?';
+  const res   = ir.operation?.target_resource || '?';
+  const env   = ir.operation?.target_environment || '?';
+  const score = r.risk?.score ?? '?';
+  const level = r.risk?.level || '?';
 
-    if (ir.operation?.target_environment === 'production') {
-      score += 30;
-      reasons.push('production environment');
-      log(out, 'r-warn', `⚠ Target environment: PRODUCTION (+30pts)`);
-    } else {
-      log(out, 'r-pass', `✓ Target environment: ${ir.operation?.target_environment || 'unknown'}`);
-    }
+  log(out, 'r-info', '── IRL RUST ENGINE (wasm) ────────────');
+  log(out, 'r-info', `▶ agent:     ${agent}`);
+  log(out, 'r-info', `▶ operation: ${op} → ${res}`);
+  log(out, 'r-info', `▶ env:       ${env}`);
+  log(out, 'r-info', '── RISK FACTORS ──────────────────────');
 
-    if (op === 'delete') log(out, 'r-warn', `⚠ Operation type: DELETE (+50pts)`);
-    else log(out, 'r-pass', `✓ Operation type: ${op}`);
+  const levelClass = { CRITICAL:'r-fail', HIGH:'r-gate', MEDIUM:'r-warn', LOW:'r-pass' }[level] || 'r-info';
+  (r.risk?.reasons || []).forEach(reason => log(out, levelClass, `⚑  ${reason}`));
 
-    if (ir.consequences?.reversible === false) {
-      score += 25; reasons.push('irreversible');
-      log(out, 'r-fail', '✗ Reversible: FALSE (+25pts)');
-    } else {
-      log(out, 'r-pass', '✓ Reversible: true');
-    }
+  log(out, 'r-info', '── VERDICT ───────────────────────────');
+  log(out, levelClass, `▶ Score:    ${score}/100 — ${level}`);
+  log(out, levelClass, `▶ Policy:   ${r.policy}`);
+  log(out, levelClass, `▶ Decision: ${r.decision}`);
+  log(out, 'r-info',  `▶ Time:     ${new Date().toISOString()}`);
 
-    if (ir.rationale?.verified === false) {
-      score += 20; reasons.push('assumption not verified');
-      log(out, 'r-fail', '✗ Assumption verified: FALSE (+20pts)');
-    } else {
-      log(out, 'r-pass', '✓ Assumption verified');
-    }
-
-    const alts = ir.rationale?.alternatives_considered || [];
-    if (alts.length === 0) {
-      score += 15; reasons.push('no alternatives considered');
-      log(out, 'r-warn', '⚠ Alternatives considered: NONE (+15pts)');
-    } else {
-      log(out, 'r-pass', `✓ Alternatives considered: ${alts.length}`);
-    }
-
-    if (ir.consequences?.affects_backups === true) {
-      score += 30; reasons.push('affects backups');
-      log(out, 'r-fail', '✗ Affects backups: TRUE (+30pts)');
-    } else {
-      log(out, 'r-pass', '✓ Backups: not affected');
-    }
-
-    if (ir.consequences?.rollback_plan === false && op === 'delete') {
-      score += 20; reasons.push('no rollback plan');
-      log(out, 'r-fail', '✗ Rollback plan: NONE (+20pts)');
-    }
-
-    score = Math.min(score, 100);
-    const level = score < 25 ? 'LOW' : score < 50 ? 'MEDIUM' : score < 75 ? 'HIGH' : 'CRITICAL';
-    const levelClass = { LOW:'r-pass', MEDIUM:'r-warn', HIGH:'r-gate', CRITICAL:'r-fail' }[level];
-
-    log(out, 'r-info', '── RISK ASSESSMENT ───────────────────');
-    log(out, levelClass, `▶ Risk Score: ${score}/100 — ${level}`);
-
-    setTimeout(() => {
-      log(out, 'r-info', '── POLICY ENGINE ─────────────────────');
-
-      let decision, pol, vClass;
-      if (level === 'CRITICAL') {
-        decision = 'DENY'; pol = 'POL-003: no-destructive-production';
-        vClass = 'v-deny';
-        log(out, 'r-fail', '✗ POL-003 triggered: CRITICAL risk auto-denied');
-        log(out, 'r-fail', `✗ Reason: ${reasons.join(' + ')}`);
-      } else if (level === 'HIGH') {
-        decision = 'GATE'; pol = 'POL-002: human-approval-required';
-        vClass = 'v-gate';
-        log(out, 'r-gate', '⏸ POL-002 triggered: HUMAN GATE required');
-        log(out, 'r-gate', '⏸ Sending Telegram notification to operator...');
-        log(out, 'r-gate', '⏸ Timeout: 5 minutes → auto-DENY');
-      } else if (level === 'MEDIUM') {
-        decision = 'LOG + ALLOW'; pol = 'POL-001: log-and-proceed';
-        vClass = 'v-allow';
-        log(out, 'r-warn', '⚠ POL-001: logged and allowed with monitoring');
-      } else {
-        decision = 'ALLOW'; pol = 'POL-000: auto-allow';
-        vClass = 'v-allow';
-        log(out, 'r-pass', '✓ POL-000: low risk, auto-allowed');
-      }
-
-      log(out, 'r-info', '── VERDICT ───────────────────────────');
-      log(out, levelClass, `▶ DECISION: ${decision}`);
-      log(out, 'r-info', `▶ Policy: ${pol}`);
-      log(out, 'r-info', `▶ Timestamp: ${new Date().toISOString()}`);
-
-      verdict.textContent = decision;
-      verdict.classList.add(vClass);
-      verdict.style.display = 'block';
-    }, 600);
-  }, 400);
+  const vClass = { DENY:'v-deny', GATE:'v-gate', ALLOW:'v-allow', 'LOG+ALLOW':'v-allow' }[r.decision] || 'v-allow';
+  verdict.textContent = r.decision;
+  verdict.classList.add(vClass);
+  verdict.style.display = 'block';
 }
 </script>
 </body>
