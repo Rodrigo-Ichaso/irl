@@ -447,7 +447,7 @@ body::before {
 #
 # IRL proposes a new layer:
 #
-#   AGENT → [INTENT RECORD] → [FIREWALL] → INFRASTRUCTURE
+#   AGENT → [INTENT RECORD] → [IRL ENGINE] → INFRASTRUCTURE
 #
 # The agent must declare what it wants to do, why, and what the
 # consequences are — in a structured, verifiable, policy-evaluable
@@ -506,7 +506,7 @@ body::before {
     <span class="c-key">"computed_by"</span>: <span class="c-str">"irl-v0.1"</span>
   },
 
-  <span class="c-comm">// FIREWALL decision</span>
+  <span class="c-comm">// IRL decision</span>
   <span class="c-key">"verdict"</span>: {
     <span class="c-key">"decision"</span>: <span class="c-str"><span class="c-risk3">"DENY"</span></span>,
     <span class="c-key">"reason"</span>: <span class="c-str">"production delete + no rollback + affects backups"</span>,
@@ -527,7 +527,7 @@ body::before {
     <tr><td class="f-name">rationale.alternatives_considered</td><td class="f-type">array</td><td class="f-opt">optional</td><td class="f-desc">Non-destructive alternatives the agent evaluated. Empty array = risk +20pts.</td></tr>
     <tr><td class="f-name">consequences.reversible</td><td class="f-type">bool</td><td class="f-req">required</td><td class="f-desc">false + production = automatic GATE or DENY depending on trust level.</td></tr>
     <tr><td class="f-name">consequences.rollback_plan</td><td class="f-type">bool</td><td class="f-req">required</td><td class="f-desc">false on destructive ops = risk escalation. Agent must provide snapshot_id.</td></tr>
-    <tr><td class="f-name">risk.level</td><td class="f-type">enum</td><td class="f-opt">computed</td><td class="f-desc">Computed by firewall, not self-reported by agent. Agent cannot manipulate this.</td></tr>
+    <tr><td class="f-name">risk.level</td><td class="f-type">enum</td><td class="f-opt">computed</td><td class="f-desc">Computed by IRL engine, not self-reported by agent. Agent cannot manipulate this.</td></tr>
   </table>
 </div>
 
@@ -566,7 +566,7 @@ body::before {
 <div class="sec">
   <div class="sec-head">
     <span class="sec-num">04</span>
-    <span class="sec-title">FIREWALL SIMULATOR</span>
+    <span class="sec-title">IRL SIMULATOR</span>
     <span class="sec-pill pill-live">LIVE</span>
   </div>
 
@@ -575,7 +575,7 @@ body::before {
       <div class="sim-dot sim-dot-r"></div>
       <div class="sim-dot sim-dot-y"></div>
       <div class="sim-dot sim-dot-g"></div>
-      <div class="sim-title">IRL FIREWALL — POLICY ENGINE v0.1</div>
+      <div class="sim-title">IRL — POLICY ENGINE v0.1</div>
     </div>
     <div class="sim-body">
       <div class="sim-input">
@@ -611,7 +611,7 @@ body::before {
         ">⏳ LOADING RUST ENGINE</div>
       </div>
       <div class="sim-output">
-        <span class="sim-label">// FIREWALL OUTPUT</span>
+        <span class="sim-label">// IRL OUTPUT</span>
         <div class="sim-result" id="sim-result">
           <div class="r-line"><span class="r-ts">00:00:00</span><span class="r-info">IRL ready. Paste an intent record and evaluate.</span></div>
         </div>
@@ -757,7 +757,7 @@ body::before {
         <div class="rm-title">MCP Server Wrapper</div>
         <ul class="rm-list">
           <li>IRL as MCP server</li>
-          <li>Any MCP-compatible agent routes through the firewall</li>
+          <li>Any MCP-compatible agent routes through IRL</li>
           <li>Tool schema enforcement — if not declared, does not exist</li>
           <li>Compatible con Claude, Cursor, n8n agents</li>
         </ul>
