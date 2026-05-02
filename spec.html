@@ -616,150 +616,92 @@ body::before {
   </div>
 </div>
 
-<!-- 05 PYTHON MVP -->
+<!-- 05 RUST IMPLEMENTATION -->
 <div class="sec">
   <div class="sec-head">
     <span class="sec-num">05</span>
-    <span class="sec-title">PYTHON MVP — DEPLOYABLE TODAY</span>
+    <span class="sec-title">REFERENCE IMPLEMENTATION — RUST</span>
     <span class="sec-pill pill-code">CODE</span>
   </div>
 
-  <div class="py-block"><span class="py-comm"># irl_server.py — minimal MVP, deployable on Proxmox today
-# pip install fastapi uvicorn httpx pydantic</span>
+  <div class="py-block"><span class="py-comm">// irl-core/src/lib.rs — deterministic risk engine
+// Compiles to native binary AND WebAssembly (browser demo runs this exact code)</span>
 
-<span class="py-kw">from</span> fastapi <span class="py-kw">import</span> FastAPI, HTTPException
-<span class="py-kw">from</span> pydantic <span class="py-kw">import</span> BaseModel
-<span class="py-kw">from</span> typing <span class="py-kw">import</span> Optional, List
-<span class="py-kw">import</span> httpx, asyncio, logging
-<span class="py-kw">from</span> datetime <span class="py-kw">import</span> datetime
+<span class="py-comm">/// Deterministic risk scoring. No LLM. No probabilities.
+/// Every point is a policy decision, not a guess.</span>
+<span class="py-kw">pub fn</span> <span class="py-fn">compute_risk</span>(ir: &amp;IntentRecord) -&gt; RiskAssessment {
+    <span class="py-kw">let mut</span> score: u32 = <span class="py-num">0</span>;
+    <span class="py-kw">let mut</span> reasons: Vec&lt;String&gt; = Vec::new();
 
-app = <span class="py-fn">FastAPI</span>(title=<span class="py-str">"IRL — Intent Record Language"</span>, version=<span class="py-str">"0.1"</span>)
+    <span class="py-comm">// Operation base score</span>
+    score += <span class="py-kw">match</span> ir.operation.op_type {
+        OperationType::Read    =&gt; <span class="py-num">0</span>,
+        OperationType::Write   =&gt; <span class="py-num">20</span>,
+        OperationType::Execute =&gt; <span class="py-num">30</span>,
+        OperationType::Delete  =&gt; <span class="py-num">50</span>,
+    };
 
-<span class="py-comm"># ── MODELS ──────────────────────────────────────────────</span>
-
-<span class="py-kw">class</span> <span class="py-cls">AgentInfo</span>(BaseModel):
-    id: str
-    trust_level: str  <span class="py-comm"># low / medium / high / verified</span>
-
-<span class="py-kw">class</span> <span class="py-cls">Operation</span>(BaseModel):
-    type: str          <span class="py-comm"># read/write/delete/execute</span>
-    target_resource: str
-    target_environment: str  <span class="py-comm"># staging / production</span>
-
-<span class="py-kw">class</span> <span class="py-cls">Rationale</span>(BaseModel):
-    stated_goal: str
-    verified: bool
-    alternatives_considered: List[str] = []
-
-<span class="py-kw">class</span> <span class="py-cls">Consequences</span>(BaseModel):
-    reversible: bool
-    data_loss_risk: str = <span class="py-str">"none"</span>
-    affects_backups: bool = <span class="py-str">False</span>
-    rollback_plan: bool = <span class="py-str">False</span>
-
-<span class="py-kw">class</span> <span class="py-cls">IntentRecord</span>(BaseModel):
-    irl_version: str
-    agent: AgentInfo
-    operation: Operation
-    rationale: Rationale
-    consequences: Consequences
-
-<span class="py-comm"># ── RISK ENGINE ─────────────────────────────────────────</span>
-
-<span class="py-kw">def</span> <span class="py-fn">compute_risk</span>(ir: IntentRecord) -> <span class="py-fn">dict</span>:
-    score = <span class="py-num">0</span>
-    reasons = []
-
-    <span class="py-comm"># Operation risk</span>
-    op_scores = {<span class="py-str">"read"</span>:<span class="py-num">0</span>, <span class="py-str">"write"</span>:<span class="py-num">20</span>, <span class="py-str">"delete"</span>:<span class="py-num">50</span>, <span class="py-str">"execute"</span>:<span class="py-num">30</span>}
-    score += op_scores.<span class="py-fn">get</span>(ir.operation.type, <span class="py-num">40</span>)
-
-    <span class="py-comm"># Environment risk</span>
-    <span class="py-kw">if</span> ir.operation.target_environment == <span class="py-str">"production"</span>:
-        score += <span class="py-num">30</span>
-        reasons.<span class="py-fn">append</span>(<span class="py-str">"production environment"</span>)
-
-    <span class="py-comm"># Reversibility</span>
-    <span class="py-kw">if</span> <span class="py-kw">not</span> ir.consequences.reversible:
-        score += <span class="py-num">25</span>
-        reasons.<span class="py-fn">append</span>(<span class="py-str">"irreversible operation"</span>)
-
-    <span class="py-comm"># Verification</span>
-    <span class="py-kw">if</span> <span class="py-kw">not</span> ir.rationale.verified:
-        score += <span class="py-num">20</span>
-        reasons.<span class="py-fn">append</span>(<span class="py-str">"assumption not verified"</span>)
-
-    <span class="py-comm"># No alternatives considered</span>
-    <span class="py-kw">if</span> <span class="py-kw">not</span> ir.rationale.alternatives_considered:
-        score += <span class="py-num">15</span>
-        reasons.<span class="py-fn">append</span>(<span class="py-str">"no alternatives considered"</span>)
-
-    <span class="py-comm"># Backup impact</span>
-    <span class="py-kw">if</span> ir.consequences.affects_backups:
-        score += <span class="py-num">30</span>
-        reasons.<span class="py-fn">append</span>(<span class="py-str">"affects backup systems"</span>)
-
-    <span class="py-comm"># No rollback</span>
-    <span class="py-kw">if</span> <span class="py-kw">not</span> ir.consequences.rollback_plan <span class="py-kw">and</span> ir.operation.type == <span class="py-str">"delete"</span>:
-        score += <span class="py-num">20</span>
-        reasons.<span class="py-fn">append</span>(<span class="py-str">"no rollback plan defined"</span>)
-
-    score = <span class="py-fn">min</span>(score, <span class="py-num">100</span>)
-    level = <span class="py-str">"low"</span> <span class="py-kw">if</span> score < <span class="py-num">25</span> <span class="py-kw">else</span> <span class="py-str">"medium"</span> <span class="py-kw">if</span> score < <span class="py-num">50</span> <span class="py-kw">else</span> <span class="py-str">"high"</span> <span class="py-kw">if</span> score < <span class="py-num">75</span> <span class="py-kw">else</span> <span class="py-str">"critical"</span>
-
-    <span class="py-kw">return</span> {<span class="py-str">"score"</span>: score, <span class="py-str">"level"</span>: level, <span class="py-str">"reasons"</span>: reasons}
-
-<span class="py-comm"># ── POLICY ENGINE ────────────────────────────────────────</span>
-
-<span class="py-kw">def</span> <span class="py-fn">evaluate_policy</span>(ir: IntentRecord, risk: <span class="py-fn">dict</span>) -> <span class="py-fn">dict</span>:
-    level = risk[<span class="py-str">"level"</span>]
-
-    <span class="py-kw">if</span> level == <span class="py-str">"critical"</span>:
-        <span class="py-kw">return</span> {<span class="py-str">"decision"</span>: <span class="py-str">"DENY"</span>, <span class="py-str">"policy"</span>: <span class="py-str">"POL-003"</span>}
-
-    <span class="py-kw">if</span> level == <span class="py-str">"high"</span>:
-        <span class="py-kw">return</span> {<span class="py-str">"decision"</span>: <span class="py-str">"GATE"</span>, <span class="py-str">"policy"</span>: <span class="py-str">"POL-002"</span>}
-
-    <span class="py-kw">if</span> level == <span class="py-str">"medium"</span>:
-        <span class="py-kw">return</span> {<span class="py-str">"decision"</span>: <span class="py-str">"LOG_ALLOW"</span>, <span class="py-str">"policy"</span>: <span class="py-str">"POL-001"</span>}
-
-    <span class="py-kw">return</span> {<span class="py-str">"decision"</span>: <span class="py-str">"ALLOW"</span>, <span class="py-str">"policy"</span>: <span class="py-str">"POL-000"</span>}
-
-<span class="py-comm"># ── HUMAN GATE (Telegram) ────────────────────────────────</span>
-
-<span class="py-kw">async def</span> <span class="py-fn">send_telegram_gate</span>(ir: IntentRecord, risk: <span class="py-fn">dict</span>):
-    <span class="py-comm"># Configure: TELEGRAM_TOKEN and CHAT_ID in env vars</span>
-    msg = <span class="py-fn">f</span><span class="py-str">"""🔴 IRL FIREWALL — HUMAN GATE REQUIRED
-Agent: {ir.agent.id}
-Action: {ir.operation.type} → {ir.operation.target_resource}
-Env: {ir.operation.target_environment.upper()}
-Risk: {risk['level'].upper()} ({risk['score']}/100)
-Reasons: {', '.join(risk['reasons'])}
-
-Approve? Reply APPROVE or DENY within 5 minutes.
-Silence = auto-DENY."""</span>
-    <span class="py-comm"># httpx.post(telegram_api_url, json={...})</span>
-    logging.<span class="py-fn">warning</span>(<span class="py-fn">f</span><span class="py-str">"GATE REQUIRED: {msg}"</span>)
-
-<span class="py-comm"># ── API ENDPOINT ─────────────────────────────────────────</span>
-
-<span class="py-dec">@app.post</span>(<span class="py-str">"/evaluate"</span>)
-<span class="py-kw">async def</span> <span class="py-fn">evaluate_intent</span>(ir: IntentRecord):
-    risk    = <span class="py-fn">compute_risk</span>(ir)
-    verdict = <span class="py-fn">evaluate_policy</span>(ir, risk)
-
-    <span class="py-kw">if</span> verdict[<span class="py-str">"decision"</span>] == <span class="py-str">"GATE"</span>:
-        <span class="py-kw">await</span> <span class="py-fn">send_telegram_gate</span>(ir, risk)
-
-    <span class="py-kw">return</span> {
-        <span class="py-str">"agent"</span>: ir.agent.id,
-        <span class="py-str">"operation"</span>: ir.operation.type,
-        <span class="py-str">"risk"</span>: risk,
-        <span class="py-str">"verdict"</span>: verdict,
-        <span class="py-str">"timestamp"</span>: datetime.<span class="py-fn">utcnow</span>().<span class="py-fn">isoformat</span>()
+    <span class="py-kw">if</span> ir.operation.target_environment == Environment::Production {
+        score += <span class="py-num">30</span>;  reasons.push(<span class="py-str">"production environment"</span>.into());
+    }
+    <span class="py-kw">if</span> !ir.consequences.reversible {
+        score += <span class="py-num">25</span>;  reasons.push(<span class="py-str">"irreversible operation"</span>.into());
+    }
+    <span class="py-kw">if</span> !ir.rationale.verified {
+        score += <span class="py-num">20</span>;  reasons.push(<span class="py-str">"assumption not verified"</span>.into());
+    }
+    <span class="py-kw">if</span> ir.rationale.alternatives_considered.is_empty() {
+        score += <span class="py-num">15</span>;  reasons.push(<span class="py-str">"no alternatives considered"</span>.into());
+    }
+    <span class="py-kw">if</span> ir.consequences.affects_backups {
+        score += <span class="py-num">30</span>;  reasons.push(<span class="py-str">"affects backup systems"</span>.into());
+    }
+    <span class="py-kw">if</span> ir.operation.op_type == OperationType::Delete &amp;&amp; !ir.consequences.rollback_plan {
+        score += <span class="py-num">20</span>;  reasons.push(<span class="py-str">"delete without rollback plan"</span>.into());
     }
 
-<span class="py-comm"># uvicorn irl_server:app --host 0.0.0.0 --port 8800</span></div>
+    <span class="py-comm">// Trust discount — verified agents earn reduced scrutiny</span>
+    score = score.saturating_sub(<span class="py-kw">match</span> ir.agent.trust_level {
+        TrustLevel::Verified =&gt; <span class="py-num">20</span>,
+        TrustLevel::High     =&gt; <span class="py-num">10</span>,
+        _                    =&gt; <span class="py-num">0</span>,
+    });
+
+    <span class="py-kw">let</span> score = score.min(<span class="py-num">100</span>) <span class="py-kw">as</span> u8;
+    <span class="py-kw">let</span> level = <span class="py-kw">match</span> score {
+        <span class="py-num">0</span>..=<span class="py-num">24</span>  =&gt; RiskLevel::Low,
+        <span class="py-num">25</span>..=<span class="py-num">49</span> =&gt; RiskLevel::Medium,
+        <span class="py-num">50</span>..=<span class="py-num">74</span> =&gt; RiskLevel::High,
+        _        =&gt; RiskLevel::Critical,
+    };
+    RiskAssessment { score, level, reasons }
+}</div>
+
+  <div class="py-block"><span class="py-comm">// irl-server/src/main.rs — Axum HTTP server, single binary, no runtime deps</span>
+
+<span class="py-dec">#[axum::debug_handler]</span>
+<span class="py-kw">async fn</span> <span class="py-fn">evaluate_handler</span>(
+    State(state): State&lt;AppState&gt;,
+    Json(ir): Json&lt;IntentRecord&gt;,
+) -&gt; (StatusCode, Json&lt;Value&gt;) {
+
+    <span class="py-kw">let</span> result = <span class="py-fn">evaluate</span>(ir);          <span class="py-comm">// deterministic — no network call, no LLM</span>
+    <span class="py-fn">log_evaluation</span>(&amp;state.db, &amp;result).<span class="py-kw">await</span>;
+
+    <span class="py-kw">if</span> result.verdict.requires_human {
+        <span class="py-fn">send_gate_notification</span>(&amp;state, &amp;result).<span class="py-kw">await</span>; <span class="py-comm">// webhook → Telegram fallback</span>
+    }
+
+    <span class="py-kw">let</span> status = <span class="py-kw">match</span> result.verdict.decision {
+        Decision::Allow | Decision::LogAllow =&gt; StatusCode::OK,         <span class="py-comm">// 200</span>
+        Decision::Gate                       =&gt; StatusCode::ACCEPTED,   <span class="py-comm">// 202</span>
+        Decision::Deny                       =&gt; StatusCode::FORBIDDEN,  <span class="py-comm">// 403</span>
+    };
+    (status, Json(<span class="py-fn">json!</span>({ <span class="py-str">"decision"</span>: ..., <span class="py-str">"risk"</span>: ..., <span class="py-str">"verdict_id"</span>: ... })))
+}
+
+<span class="py-comm">// cargo build --release  →  single binary, copy to any Linux VM and run</span>
+<span class="py-comm">// cargo build --target wasm32-unknown-unknown --features wasm  →  browser demo</span></div>
 </div>
 
 <!-- 06 ROADMAP -->

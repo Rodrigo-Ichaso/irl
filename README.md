@@ -237,7 +237,7 @@ systemctl enable --now irl-server
 
 ## Why Rust?
 
-A security firewall that pauses for GC in a critical moment is unacceptable. Rust gives us:
+A policy enforcement layer that pauses for GC in a critical moment is unacceptable. Rust gives us:
 
 - **Memory safety** — guaranteed by the compiler, not by discipline
 - **No GC pauses** — predictable latency always
