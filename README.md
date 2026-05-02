@@ -137,6 +137,26 @@ curl -X DELETE http://localhost:8800/agents/cursor-agent-01 \
 
 An agent that submits `"trust_level": "verified"` in the intent record gets overridden to `low` if it's not in the registry. The trust override is logged.
 
+---
+
+## Resource Registry
+
+Map known resources to their authoritative environment. If an agent claims `"volume:prod-db-main"` is `staging`, IRL overrides it to `production` — the agent cannot spoof environments.
+
+```bash
+# Register a resource
+curl -X POST http://localhost:8800/resources \
+  -H "x-admin-key: your-admin-key" \
+  -H "Content-Type: application/json" \
+  -d '{"resource_id": "volume:prod-db-main", "environment": "production", "note": "main prod DB"}'
+
+# List registered resources
+curl http://localhost:8800/resources \
+  -H "x-admin-key: your-admin-key"
+```
+
+Unknown resources are not blocked — the agent's declared environment is used. Only register resources where environment spoofing would be critical (production DBs, backup volumes, billing services).
+
 ```bash
 # Start server with admin key
 IRL_ADMIN_KEY=your-secret-key cargo run --bin irl-server

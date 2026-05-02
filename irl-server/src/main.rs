@@ -12,7 +12,7 @@ use axum::{
     Router,
 };
 use chrono::Utc;
-use irl_core::{evaluate, Decision, EvaluationResult, IntentRecord, TrustLevel};
+use irl_core::{evaluate, Decision, Environment, EvaluationResult, IntentRecord, TrustLevel};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{env, sync::Arc};
@@ -59,6 +59,13 @@ async fn init_db(conn: &Connection) {
                 note          TEXT,
                 registered_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS resources (
+                resource_id   TEXT PRIMARY KEY,
+                environment   TEXT NOT NULL,
+                note          TEXT,
+                registered_at TEXT NOT NULL
+            );
         ")?;
         Ok(())
     }).await.expect("Failed to initialize DB");
@@ -85,6 +92,34 @@ async fn registered_trust(conn: &Arc<Mutex<Connection>>, agent_id: &str) -> Trus
         Some("high")     => TrustLevel::High,
         Some("medium")   => TrustLevel::Medium,
         _                => TrustLevel::Low,
+    }
+}
+
+// ── RESOURCE REGISTRY ────────────────────────────────────────────────────────
+
+// Look up the authoritative environment for a resource.
+// If the resource is registered, its environment overrides whatever the agent declared.
+// This prevents environment spoofing: agent cannot claim "prod-db" is staging.
+async fn registered_environment(
+    conn: &Arc<Mutex<Connection>>,
+    resource_id: &str,
+) -> Option<Environment> {
+    let id = resource_id.to_string();
+    let db = conn.lock().await;
+    let result = db.call(move |db| {
+        let mut stmt = db.prepare(
+            "SELECT environment FROM resources WHERE resource_id = ?1"
+        )?;
+        let env = stmt.query_row([&id], |row| row.get::<_, String>(0))
+            .optional()?;
+        Ok(env)
+    }).await.unwrap_or(None);
+
+    match result.as_deref() {
+        Some("production") => Some(Environment::Production),
+        Some("staging")    => Some(Environment::Staging),
+        Some("local")      => Some(Environment::Local),
+        _                  => None, // unknown resource — trust what agent declared
     }
 }
 
@@ -239,6 +274,18 @@ async fn evaluate_handler(
         );
     }
     ir.agent.trust_level = registry_trust;
+
+    // Override environment from resource registry.
+    // If the resource is known, use the registered environment — not what the agent declared.
+    if let Some(env) = registered_environment(&state.db, &ir.operation.target_resource).await {
+        if ir.operation.target_environment != env {
+            warn!(
+                "Environment override for {}: {:?} → {:?} (resource registry)",
+                ir.operation.target_resource, ir.operation.target_environment, env
+            );
+        }
+        ir.operation.target_environment = env;
+    }
 
     info!("Evaluating intent from agent: {} ({:?})", ir.agent.id, ir.operation.op_type);
 
@@ -413,6 +460,107 @@ async fn remove_agent(
     (StatusCode::OK, Json(json!({ "agent_id": agent_id, "removed": true })))
 }
 
+// ── RESOURCE REGISTRY ENDPOINTS ──────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct RegisterResource {
+    resource_id: String,
+    environment: String,
+    note:        Option<String>,
+}
+
+async fn register_resource(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<RegisterResource>,
+) -> (StatusCode, Json<Value>) {
+    if !is_admin(&headers, &state.admin_key) {
+        return (StatusCode::UNAUTHORIZED, Json(json!({"error": "x-admin-key required"})));
+    }
+
+    let valid_envs = ["local", "staging", "production"];
+    if !valid_envs.contains(&body.environment.as_str()) {
+        return (StatusCode::BAD_REQUEST, Json(json!({
+            "error": "environment must be: local | staging | production"
+        })));
+    }
+
+    let resource_id = body.resource_id.clone();
+    let environment = body.environment.clone();
+    let note        = body.note.clone();
+    let now         = Utc::now().to_rfc3339();
+
+    let db = state.db.lock().await;
+    let result = db.call(move |db| {
+        db.execute(
+            "INSERT INTO resources (resource_id, environment, note, registered_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(resource_id) DO UPDATE SET environment=excluded.environment, note=excluded.note",
+            rusqlite::params![resource_id, environment, note, now],
+        )?;
+        Ok(())
+    }).await;
+
+    match result {
+        Ok(_) => {
+            info!("Resource registered: {} → {}", body.resource_id, body.environment);
+            (StatusCode::OK, Json(json!({
+                "resource_id": body.resource_id,
+                "environment": body.environment,
+                "registered":  true
+            })))
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))),
+    }
+}
+
+async fn list_resources(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> (StatusCode, Json<Value>) {
+    if !is_admin(&headers, &state.admin_key) {
+        return (StatusCode::UNAUTHORIZED, Json(json!({"error": "x-admin-key required"})));
+    }
+
+    let db = state.db.lock().await;
+    let resources = db.call(|db| {
+        let mut stmt = db.prepare(
+            "SELECT resource_id, environment, note, registered_at FROM resources ORDER BY registered_at DESC"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(json!({
+                "resource_id":   row.get::<_,String>(0)?,
+                "environment":   row.get::<_,String>(1)?,
+                "note":          row.get::<_,Option<String>>(2)?,
+                "registered_at": row.get::<_,String>(3)?,
+            }))
+        })?.collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }).await.unwrap_or_default();
+
+    (StatusCode::OK, Json(json!({ "count": resources.len(), "resources": resources })))
+}
+
+async fn remove_resource(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(resource_id): Path<String>,
+) -> (StatusCode, Json<Value>) {
+    if !is_admin(&headers, &state.admin_key) {
+        return (StatusCode::UNAUTHORIZED, Json(json!({"error": "x-admin-key required"})));
+    }
+
+    let id = resource_id.clone();
+    let db = state.db.lock().await;
+    let _ = db.call(move |db| {
+        db.execute("DELETE FROM resources WHERE resource_id = ?1", [&id])?;
+        Ok(())
+    }).await;
+
+    info!("Resource removed from registry: {}", resource_id);
+    (StatusCode::OK, Json(json!({ "resource_id": resource_id, "removed": true })))
+}
+
 // ── MAIN ──────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -442,9 +590,12 @@ async fn main() {
         .route("/health",        get(health))
         .route("/evaluate",      post(evaluate_handler))
         .route("/audit",         get(get_audit_log))
-        .route("/agents",        post(register_agent))
-        .route("/agents",        get(list_agents))
-        .route("/agents/:id",    delete(remove_agent))
+        .route("/agents",           post(register_agent))
+        .route("/agents",           get(list_agents))
+        .route("/agents/:id",       delete(remove_agent))
+        .route("/resources",        post(register_resource))
+        .route("/resources",        get(list_resources))
+        .route("/resources/:id",    delete(remove_resource))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -455,9 +606,12 @@ async fn main() {
     info!("POST /evaluate       — evaluate an intent record");
     info!("GET  /audit          — recent audit log (last 50)");
     info!("GET  /health         — health check");
-    info!("POST /agents         — register agent trust level  [admin]");
-    info!("GET  /agents         — list registered agents      [admin]");
-    info!("DELETE /agents/:id   — remove agent from registry  [admin]");
+    info!("POST /agents            — register agent trust level   [admin]");
+    info!("GET  /agents            — list registered agents       [admin]");
+    info!("DELETE /agents/:id      — remove agent from registry   [admin]");
+    info!("POST /resources         — register resource environment [admin]");
+    info!("GET  /resources         — list registered resources     [admin]");
+    info!("DELETE /resources/:id   — remove resource from registry [admin]");
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
