@@ -1,6 +1,6 @@
 // irl-server/src/main.rs
 // IRL — Intent Record Language — HTTP server
-// Axum + Tokio + SQLite audit log + Telegram human gate
+// Axum + Tokio + SQLite audit log + webhook human gate (Telegram fallback)
 
 use axum::{
     extract::State,
@@ -21,6 +21,7 @@ use tower_http::cors::CorsLayer;
 #[derive(Clone)]
 struct AppState {
     db: Arc<Mutex<Connection>>,
+    gate_webhook_url: Option<String>,
     telegram_token: Option<String>,
     telegram_chat_id: Option<String>,
 }
@@ -77,47 +78,84 @@ async fn log_evaluation(conn: &Arc<Mutex<Connection>>, result: &EvaluationResult
     }).await;
 }
 
-async fn send_telegram_gate(state: &AppState, result: &EvaluationResult) {
-    let (Some(token), Some(chat_id)) = (&state.telegram_token, &state.telegram_chat_id) else {
-        warn!("Telegram not configured — set TELEGRAM_TOKEN and TELEGRAM_CHAT_ID");
-        return;
-    };
-
+async fn send_gate_notification(state: &AppState, result: &EvaluationResult) {
     let ir   = &result.intent;
     let risk = &result.risk;
 
-    let msg = format!(
-        "🔴 *IRL — HUMAN GATE*\n\n\
-        Agent: `{}`\n\
-        Action: `{:?}` → `{}`\n\
-        Env: *{:?}*\n\
-        Risk: *{} ({}/100)*\n\
-        Reasons: `{}`\n\
-        Goal: _{}_\n\n\
-        Verdict ID: `{}`\n\n\
-        _Silence = auto-DENY in 5 minutes_",
-        ir.agent.id,
-        ir.operation.op_type,
-        ir.operation.target_resource,
-        ir.operation.target_environment,
-        risk.level,
-        risk.score,
-        risk.reasons.join(", "),
-        ir.rationale.stated_goal,
-        result.verdict.verdict_id,
-    );
+    // Webhook first (developer-friendly, works with Slack / Discord / n8n / anything)
+    if let Some(url) = &state.gate_webhook_url {
+        let payload = json!({
+            "event":      "irl.gate",
+            "verdict_id": result.verdict.verdict_id,
+            "agent": {
+                "id":          ir.agent.id,
+                "trust_level": format!("{:?}", ir.agent.trust_level),
+            },
+            "action": {
+                "type":        format!("{:?}", ir.operation.op_type),
+                "resource":    ir.operation.target_resource,
+                "environment": format!("{:?}", ir.operation.target_environment),
+            },
+            "risk": {
+                "score":   risk.score,
+                "level":   risk.level.to_string(),
+                "reasons": risk.reasons,
+            },
+            "goal":      ir.rationale.stated_goal,
+            "policy":    result.verdict.policy,
+            "reason":    result.verdict.reason,
+            "timestamp": Utc::now().to_rfc3339(),
+        });
 
-    let url  = format!("https://api.telegram.org/bot{}/sendMessage", token);
-    let body = json!({ "chat_id": chat_id, "text": msg, "parse_mode": "Markdown" });
-
-    match reqwest::Client::new().post(&url).json(&body).send().await {
-        Ok(r) if r.status().is_success() =>
-            info!("Telegram gate sent for {}", result.verdict.verdict_id),
-        Ok(r) =>
-            error!("Telegram error: {}", r.status()),
-        Err(e) =>
-            error!("Telegram send failed: {}", e),
+        match reqwest::Client::new().post(url).json(&payload).send().await {
+            Ok(r) if r.status().is_success() =>
+                info!("Gate webhook sent for {}", result.verdict.verdict_id),
+            Ok(r) =>
+                error!("Gate webhook error: {}", r.status()),
+            Err(e) =>
+                error!("Gate webhook failed: {}", e),
+        }
+        return;
     }
+
+    // Telegram fallback
+    if let (Some(token), Some(chat_id)) = (&state.telegram_token, &state.telegram_chat_id) {
+        let msg = format!(
+            "🔴 *IRL — HUMAN GATE*\n\n\
+            Agent: `{}`\n\
+            Action: `{:?}` → `{}`\n\
+            Env: *{:?}*\n\
+            Risk: *{} ({}/100)*\n\
+            Reasons: `{}`\n\
+            Goal: _{}_\n\n\
+            Verdict ID: `{}`\n\n\
+            _Silence = auto-DENY in 5 minutes_",
+            ir.agent.id,
+            ir.operation.op_type,
+            ir.operation.target_resource,
+            ir.operation.target_environment,
+            risk.level,
+            risk.score,
+            risk.reasons.join(", "),
+            ir.rationale.stated_goal,
+            result.verdict.verdict_id,
+        );
+
+        let url  = format!("https://api.telegram.org/bot{}/sendMessage", token);
+        let body = json!({ "chat_id": chat_id, "text": msg, "parse_mode": "Markdown" });
+
+        match reqwest::Client::new().post(&url).json(&body).send().await {
+            Ok(r) if r.status().is_success() =>
+                info!("Telegram gate sent for {}", result.verdict.verdict_id),
+            Ok(r) =>
+                error!("Telegram error: {}", r.status()),
+            Err(e) =>
+                error!("Telegram send failed: {}", e),
+        }
+        return;
+    }
+
+    warn!("GATE triggered but no notifier configured — set GATE_WEBHOOK_URL or TELEGRAM_TOKEN+TELEGRAM_CHAT_ID");
 }
 
 async fn health() -> Json<Value> {
@@ -141,7 +179,7 @@ async fn evaluate_handler(
 
     if result.verdict.requires_human {
         warn!("GATE: {} — {}/100", result.intent.agent.id, result.risk.score);
-        send_telegram_gate(&state, &result).await;
+        send_gate_notification(&state, &result).await;
     }
 
     let decision_str = result.verdict.decision.to_string();
@@ -210,6 +248,7 @@ async fn main() {
 
     let state = AppState {
         db:               Arc::new(Mutex::new(conn)),
+        gate_webhook_url: env::var("GATE_WEBHOOK_URL").ok(),
         telegram_token:   env::var("TELEGRAM_TOKEN").ok(),
         telegram_chat_id: env::var("TELEGRAM_CHAT_ID").ok(),
     };

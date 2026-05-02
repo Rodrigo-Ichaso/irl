@@ -41,7 +41,7 @@ The firewall evaluates this deterministically — no LLM, no probabilities — a
 |---------|---------|
 | `ALLOW` | Auto-approved, low risk |
 | `LOG+ALLOW` | Approved with monitoring |
-| `GATE` | Paused — human approval required via Telegram |
+| `GATE` | Paused — human approval required (webhook / Telegram) |
 | `DENY` | Blocked — critical risk auto-denied |
 
 ---
@@ -77,29 +77,37 @@ curl http://localhost:8800/audit
 
 ---
 
-## With Telegram Gate
+## Human Gate
+
+When a HIGH risk operation is submitted, IRL pauses and notifies your team.
+
+**Option A — Generic webhook** (Slack, Discord, n8n, PagerDuty, anything):
+
+```bash
+GATE_WEBHOOK_URL=https://your-endpoint/hook \
+cargo run --bin irl-firewall
+```
+
+IRL POSTs this payload to your URL:
+
+```json
+{
+  "event": "irl.gate",
+  "verdict_id": "abc-123",
+  "agent": { "id": "cursor-agent-01", "trust_level": "Medium" },
+  "action": { "type": "Delete", "resource": "volume:prod-db-main", "environment": "Production" },
+  "risk": { "score": 68, "level": "HIGH", "reasons": ["production environment", "irreversible operation"] },
+  "goal": "Fix credential mismatch",
+  "timestamp": "2026-04-24T09:00:00Z"
+}
+```
+
+**Option B — Telegram fallback**:
 
 ```bash
 TELEGRAM_TOKEN=your_bot_token \
 TELEGRAM_CHAT_ID=your_chat_id \
 cargo run --bin irl-firewall
-```
-
-When a HIGH risk operation is submitted, you receive:
-
-```
-🔴 IRL FIREWALL — HUMAN GATE
-
-Agent: cursor-agent-01
-Action: Delete → volume:prod-db-main
-Env: PRODUCTION
-Risk: HIGH (68/100)
-Reasons: production environment, irreversible operation
-
-Reply APPROVE <verdict_id> to allow
-Reply DENY <verdict_id> to block
-
-Silence = auto-DENY in 5 minutes
 ```
 
 ---
