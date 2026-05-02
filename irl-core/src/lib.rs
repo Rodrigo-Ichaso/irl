@@ -309,6 +309,51 @@ pub fn evaluate(ir: IntentRecord) -> EvaluationResult {
     EvaluationResult { intent: ir, risk, verdict }
 }
 
+// ── WASM ENTRY POINT ─────────────────────────────────────────────────────────
+
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
+/// Entry point for the browser demo.
+/// Input: IntentRecord JSON string.
+/// Output: { decision, policy, reason, risk: { score, level, reasons } }
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn evaluate_json(input: &str) -> String {
+    #[derive(serde::Serialize)]
+    struct WasmResult<'a> {
+        decision: String,
+        policy: String,
+        reason: String,
+        risk: WasmRisk<'a>,
+    }
+    #[derive(serde::Serialize)]
+    struct WasmRisk<'a> {
+        score: u8,
+        level: String,
+        reasons: &'a [String],
+    }
+
+    match serde_json::from_str::<IntentRecord>(input) {
+        Ok(ir) => {
+            let risk = compute_risk(&ir);
+            let verdict = evaluate_policy(&ir, &risk);
+            let out = WasmResult {
+                decision: verdict.decision.to_string(),
+                policy: verdict.policy,
+                reason: verdict.reason,
+                risk: WasmRisk {
+                    score: risk.score,
+                    level: risk.level.to_string(),
+                    reasons: &risk.reasons,
+                },
+            };
+            serde_json::to_string(&out).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"))
+        }
+        Err(e) => format!("{{\"error\":\"Parse error: {e}\"}}"),
+    }
+}
+
 // ── TESTS ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

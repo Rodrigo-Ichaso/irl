@@ -578,6 +578,7 @@ body::before {
       <div class="panel-header">
         <div class="panel-dot" style="background:var(--green)" id="eval-dot"></div>
         <div class="panel-title">IRL VERDICT</div>
+        <div id="eval-wasm-badge" style="display:none;font-size:9px;color:var(--purple);border:1px solid rgba(207,159,255,0.4);padding:2px 8px;letter-spacing:1px;margin-left:8px">RUST WASM</div>
         <div class="panel-badge" id="eval-badge" style="display:none"></div>
       </div>
       <div style="padding:16px">
@@ -833,59 +834,21 @@ function clearAudit() {
   renderAudit();
 }
 
-// ── LIVE RISK ENGINE (mirrors Rust irl-core exactly) ─────────────────────────
-function computeRisk(record) {
-  let score = 0;
-  const reasons = [];
-  const op   = (record.operation || {});
-  const rat  = (record.rationale || {});
-  const cons = (record.consequences || {});
-  const agent = (record.agent || {});
+// ── WASM LOADER ───────────────────────────────────────────────────────────────
+let wasmEvaluate = null;
 
-  const opType = (op.type || '').toLowerCase();
-  const env    = (op.target_environment || '').toLowerCase();
-  const trust  = (agent.trust_level || '').toLowerCase();
-
-  if (opType === 'delete')                        { score += 50; }
-  else if (opType === 'write')                    { score += 20; }
-  else if (['execute','network','auth'].includes(opType)) { score += 10; }
-
-  if (env === 'production')                       { score += 30; }
-  else if (env === 'staging')                     { score += 10; }
-
-  if (cons.reversible === false)                  { score += 25; reasons.push('irreversible operation'); }
-  if (rat.verified === false)                     { score += 20; reasons.push('assumption not verified'); }
-  if (!rat.alternatives_considered || rat.alternatives_considered.length === 0)
-                                                  { score += 15; reasons.push('no alternatives considered'); }
-  if (cons.affects_backups === true)              { score += 30; reasons.push('affects backup systems'); }
-  if (opType === 'delete' && cons.rollback_plan === false)
-                                                  { score += 20; reasons.push('delete without rollback plan'); }
-  if (cons.data_loss_risk === 'total')            { score += 25; reasons.push('total data loss risk'); }
-  else if (cons.data_loss_risk === 'partial')     { score += 10; }
-
-  if (trust === 'verified')                       { score -= 20; }
-  else if (trust === 'high')                      { score -= 10; }
-
-  if (env === 'production')                       { reasons.unshift('production environment'); }
-
-  score = Math.max(0, Math.min(100, score));
-
-  let level, decision, policy;
-  if (score >= 75)      { level = 'CRITICAL'; decision = 'DENY';      policy = 'POL-003'; }
-  else if (score >= 50) { level = 'HIGH';     decision = 'GATE';      policy = 'POL-002'; }
-  else if (score >= 25) { level = 'MEDIUM';   decision = 'LOG+ALLOW'; policy = 'POL-001'; }
-  else                  { level = 'LOW';      decision = 'ALLOW';     policy = 'POL-000'; }
-
-  // Override: production delete → minimum GATE
-  if (opType === 'delete' && env === 'production' && decision === 'ALLOW') {
-    decision = 'GATE'; policy = 'POL-002'; level = 'HIGH';
+async function loadWasm() {
+  try {
+    const { default: init, evaluate_json } = await import('./wasm/irl_core.js');
+    await init();
+    wasmEvaluate = evaluate_json;
+    document.getElementById('eval-wasm-badge').style.display = 'inline';
+  } catch(e) {
+    console.warn('WASM load failed, no fallback available:', e);
   }
-
-  return { score, level, decision, policy, reasons,
-           resource: op.target_resource || '(unspecified)',
-           environment: env || '(unspecified)',
-           opType, agent: agent.id || 'unknown' };
 }
+
+loadWasm();
 
 function evaluate() {
   const raw = document.getElementById('eval-input').value;
@@ -897,6 +860,11 @@ function evaluate() {
   out.innerHTML = '';
   box.style.display = 'none';
 
+  if (!wasmEvaluate) {
+    appendLine('eval-output', 't-err', '✗ WASM engine loading — try again in a moment');
+    return;
+  }
+
   let record;
   try { record = JSON.parse(raw); }
   catch(e) {
@@ -904,73 +872,57 @@ function evaluate() {
     return;
   }
 
-  const r = computeRisk(record);
+  let r;
+  try { r = JSON.parse(wasmEvaluate(raw)); }
+  catch(e) {
+    appendLine('eval-output', 't-err', '✗ Engine error: ' + e.message);
+    return;
+  }
+  if (r.error) { appendLine('eval-output', 't-err', '✗ ' + r.error); return; }
+
   const ts = now();
+  const agent = record.agent?.id || 'unknown';
+  const opType = record.operation?.type || '?';
+  const resource = record.operation?.target_resource || '?';
+  const env = record.operation?.target_environment || '?';
 
-  // Build scoring breakdown
-  const opScore  = r.opType === 'delete' ? 50 : r.opType === 'write' ? 20 :
-                   ['execute','network','auth'].includes(r.opType) ? 10 : 0;
-  const envScore = r.environment === 'production' ? 30 : r.environment === 'staging' ? 10 : 0;
-  const irrScore = record.consequences?.reversible === false ? 25 : 0;
-  const verScore = record.rationale?.verified === false ? 20 : 0;
-  const altScore = (!record.rationale?.alternatives_considered || record.rationale.alternatives_considered.length === 0) ? 15 : 0;
-  const bakScore = record.consequences?.affects_backups === true ? 30 : 0;
-  const rolScore = (r.opType === 'delete' && record.consequences?.rollback_plan === false) ? 20 : 0;
-  const dlrScore = record.consequences?.data_loss_risk === 'total' ? 25 : record.consequences?.data_loss_risk === 'partial' ? 10 : 0;
-  const trstScore = record.agent?.trust_level === 'verified' ? -20 : record.agent?.trust_level === 'high' ? -10 : 0;
-
-  const lines = [
-    ['t-out',  `[irl]  agent:       ${r.agent}`],
-    ['t-out',  `[irl]  operation:   ${r.opType} → ${r.resource}`],
-    ['t-out',  `[irl]  environment: ${r.environment}`],
-    ['t-dim',  ''],
-    ['t-warn', '[irl]  ── RISK ENGINE ───────────────────'],
-  ];
-  if (opScore)   lines.push(['t-warn', `[irl]  +${String(opScore).padStart(2)}  operation: ${r.opType}`]);
-  if (envScore)  lines.push(['t-warn', `[irl]  +${String(envScore).padStart(2)}  environment: ${r.environment}`]);
-  if (irrScore)  lines.push(['t-warn', `[irl]  +${String(irrScore).padStart(2)}  irreversible`]);
-  if (verScore)  lines.push(['t-warn', `[irl]  +${String(verScore).padStart(2)}  assumption not verified`]);
-  if (altScore)  lines.push(['t-warn', `[irl]  +${String(altScore).padStart(2)}  no alternatives`]);
-  if (bakScore)  lines.push(['t-warn', `[irl]  +${String(bakScore).padStart(2)}  affects backups`]);
-  if (rolScore)  lines.push(['t-warn', `[irl]  +${String(rolScore).padStart(2)}  no rollback plan`]);
-  if (dlrScore)  lines.push(['t-warn', `[irl]  +${String(dlrScore).padStart(2)}  data loss risk: ${record.consequences?.data_loss_risk}`]);
-  if (trstScore) lines.push(['t-ok',   `[irl]  ${trstScore}  trust: ${record.agent?.trust_level}`]);
-  lines.push(['t-dim', '']);
-
-  const scoreClass = r.level === 'CRITICAL' ? 't-err' : r.level === 'HIGH' ? 't-gate' : r.level === 'MEDIUM' ? 't-warn' : 't-ok';
-  lines.push([scoreClass, `[irl]  SCORE:    ${r.score}/100 — ${r.level}`]);
-  lines.push([scoreClass, `[irl]  POLICY:   ${r.policy}`]);
-  lines.push([scoreClass, `[irl]  DECISION: ${r.decision}`]);
-
-  lines.forEach(([cls, txt]) => {
-    if (!txt) { appendBlank('eval-output'); return; }
-    appendLine('eval-output', cls, txt);
+  appendLine('eval-output', 't-out',  `[irl]  agent:       ${agent}`);
+  appendLine('eval-output', 't-out',  `[irl]  operation:   ${opType} → ${resource}`);
+  appendLine('eval-output', 't-out',  `[irl]  environment: ${env}`);
+  appendBlank('eval-output');
+  appendLine('eval-output', 't-warn', '[irl]  ── RUST RISK ENGINE (wasm) ──────────');
+  r.risk.reasons.forEach(reason => {
+    appendLine('eval-output', 't-warn', `[irl]       ⚑  ${reason}`);
   });
+  appendBlank('eval-output');
 
-  // Result box
+  const scoreClass = r.risk.level === 'CRITICAL' ? 't-err' : r.risk.level === 'HIGH' ? 't-gate' : r.risk.level === 'MEDIUM' ? 't-warn' : 't-ok';
+  appendLine('eval-output', scoreClass, `[irl]  SCORE:    ${r.risk.score}/100 — ${r.risk.level}`);
+  appendLine('eval-output', scoreClass, `[irl]  POLICY:   ${r.policy}`);
+  appendLine('eval-output', scoreClass, `[irl]  DECISION: ${r.decision}`);
+
   const colors = { DENY:'var(--red)', GATE:'var(--orange)', 'LOG+ALLOW':'var(--yellow)', ALLOW:'var(--green)' };
   const icons  = { DENY:'⛔', GATE:'⏸', 'LOG+ALLOW':'⚠', ALLOW:'✅' };
   const col = colors[r.decision] || 'var(--text)';
+
   box.style.display = 'block';
   box.style.borderColor = col;
   box.style.color = col;
-  box.style.background = col.replace(')', ',0.06)').replace('var(', 'rgba(').replace(/var\(--\w+\)/, col);
   box.textContent = `${icons[r.decision] || ''} ${r.decision}`;
 
   dot.style.background = col;
   badge.style.display = 'inline-block';
-  badge.textContent = `${r.score}/100 ${r.level}`;
+  badge.textContent = `${r.risk.score}/100 ${r.risk.level}`;
   badge.style.color = col;
-  badge.style.borderColor = col.replace(')', ',0.4)').replace('var(','rgba(');
+  badge.style.borderColor = col;
 
-  // Add to audit log
   addAuditEntry({
-    time: ts, agent: r.agent,
-    operation: `${r.opType.toUpperCase()} → ${r.resource}`,
-    environment: r.environment,
-    riskLevel: r.level, score: r.score,
+    time: ts, agent,
+    operation: `${opType.toUpperCase()} → ${resource}`,
+    environment: env,
+    riskLevel: r.risk.level, score: r.risk.score,
     decision: r.decision,
-    reason: r.reasons.slice(0,2).join(', ') || 'safe operation'
+    reason: r.risk.reasons.slice(0,2).join(', ') || 'safe operation'
   });
 }
 
