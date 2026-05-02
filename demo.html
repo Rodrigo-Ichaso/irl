@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IRL Firewall — Live Demo</title>
+<title>IRL — Intent Record Language — Live Demo</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700;800&family=Russo+One&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -463,7 +463,7 @@ body::before {
       </div>
       <div class="terminal" id="term-right">
         <div class="t-line"><span class="t-dim"># Same agent. Same token. Same intent.</span></div>
-        <div class="t-line"><span class="t-dim"># But now IRL Firewall intercepts first.</span></div>
+        <div class="t-line"><span class="t-dim"># But now IRL intercepts first.</span></div>
         <div class="t-line"><span class="t-dim"># Watch what happens.</span></div>
       </div>
       <div class="result-box result-blocked" id="res-blocked">
@@ -527,8 +527,8 @@ body::before {
 <div class="footer">
   <div class="footer-brand">ALCIOM<br>SHIELD</div>
   <div class="footer-links">
-    IRL Firewall v0.1 — Written in Rust<br>
-    <a href="https://github.com/alciom-cognitive/irl-firewall">github.com/alciom-cognitive/irl-firewall</a><br>
+    IRL — Intent Record Language v0.1 — Written in Rust<br>
+    <a href="https://github.com/Rodrigo-Ichaso/irl">github.com/Rodrigo-Ichaso/irl</a><br>
     Built by Alciom Cognitive — La Paz, Bolivia
   </div>
 </div>
@@ -747,7 +747,7 @@ function resetLeft() {
 function resetRight() {
   document.getElementById('term-right').innerHTML = `
     <div class="t-line"><span class="t-dim"># Same agent. Same token. Same intent.</span></div>
-    <div class="t-line"><span class="t-dim"># But now IRL Firewall intercepts first.</span></div>
+    <div class="t-line"><span class="t-dim"># But now IRL intercepts first.</span></div>
     <div class="t-line"><span class="t-dim"># Watch what happens.</span></div>`;
   document.getElementById('res-blocked').style.display = 'none';
   document.getElementById('btn-irl').disabled = false;
