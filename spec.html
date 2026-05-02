@@ -608,7 +608,7 @@ body::before {
       <div class="sim-output">
         <span class="sim-label">// FIREWALL OUTPUT</span>
         <div class="sim-result" id="sim-result">
-          <div class="r-line"><span class="r-ts">00:00:00</span><span class="r-info">IRL Firewall ready. Paste an intent record and evaluate.</span></div>
+          <div class="r-line"><span class="r-ts">00:00:00</span><span class="r-info">IRL ready. Paste an intent record and evaluate.</span></div>
         </div>
         <div class="verdict" id="verdict"></div>
       </div>
@@ -633,7 +633,7 @@ body::before {
 <span class="py-kw">import</span> httpx, asyncio, logging
 <span class="py-kw">from</span> datetime <span class="py-kw">import</span> datetime
 
-app = <span class="py-fn">FastAPI</span>(title=<span class="py-str">"IRL Firewall"</span>, version=<span class="py-str">"0.1"</span>)
+app = <span class="py-fn">FastAPI</span>(title=<span class="py-str">"IRL — Intent Record Language"</span>, version=<span class="py-str">"0.1"</span>)
 
 <span class="py-comm"># ── MODELS ──────────────────────────────────────────────</span>
 
@@ -809,7 +809,7 @@ Silence = auto-DENY."""</span>
       <div class="rm-content">
         <div class="rm-title">MCP Server Wrapper</div>
         <ul class="rm-list">
-          <li>IRL Firewall como MCP server</li>
+          <li>IRL como MCP server</li>
           <li>Cualquier agente MCP-compatible pasa por el firewall</li>
           <li>Tool schema enforcement — si no está declarado, no existe</li>
           <li>Compatible con Claude, Cursor, n8n agents</li>
@@ -822,7 +822,7 @@ Silence = auto-DENY."""</span>
         <div class="rm-name">PRODUCT</div>
       </div>
       <div class="rm-content">
-        <div class="rm-title">Alciom Shield — Producto vendible</div>
+        <div class="rm-title">IRL Shield — Producto vendible</div>
         <ul class="rm-list">
           <li>UI de configuración de políticas sin código</li>
           <li>Reporte mensual de operaciones auditadas</li>
@@ -837,10 +837,10 @@ Silence = auto-DENY."""</span>
 
 <!-- FOOTER -->
 <div class="footer">
-  <div class="footer-logo">ALCIOM<br>SHIELD</div>
+  <div class="footer-logo">IRL<br>SHIELD</div>
   <div class="footer-meta">
     IRL Spec v0.1 — Open Protocol Draft<br>
-    Built by Alciom Cognitive — La Paz, Bolivia<br>
+    Built by Rodrigo Ichaso — La Paz, Bolivia<br>
     "MCP solved transport. IRL solves trust."
   </div>
 </div>

@@ -250,10 +250,10 @@ A security firewall that pauses for GC in a critical moment is unacceptable. Rus
 
 `irl-core` and the IRL spec — Apache 2.0 (open protocol, maximum adoption)
 
-`irl-server` (Alciom Shield) — BSL 1.1 (free for personal use, commercial license required for production business use)
+`irl-server` (IRL Shield) — BSL 1.1 (free for personal use, commercial license required for production business use)
 
 ---
 
-**Built by [Alciom Cognitive](https://alciom.dev) — La Paz, Bolivia**
+**Built by Rodrigo Ichaso — La Paz, Bolivia**
 
 *Incident reference: PocketOS/Railway, April 24, 2026*
