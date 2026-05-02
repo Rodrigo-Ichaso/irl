@@ -1112,6 +1112,9 @@ async function loadWasm() {
 loadWasm();
 
 function evaluate() {
+  // diagnostic: confirm onclick fires
+  document.getElementById('eval-output').innerHTML = '<div class="t-line"><span class="t-ok"># evaluate() called — running engine...</span></div>';
+
   const raw = document.getElementById('eval-input').value;
   const out = document.getElementById('eval-output');
   const box = document.getElementById('eval-result-box');
