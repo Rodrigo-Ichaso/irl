@@ -622,7 +622,7 @@ body::before {
   }
 }</textarea>
         <div style="display:flex;gap:6px;margin-top:10px;align-items:center">
-          <button id="btn-evaluate" onclick="evaluate()" style="
+          <button id="btn-evaluate" onclick="runIrlEval()" style="
             flex:1;padding:12px;
             font-family:var(--mono);font-size:11px;letter-spacing:3px;
             cursor:pointer;border:1px solid rgba(76,194,255,0.4);
@@ -1081,7 +1081,7 @@ function loadExample(type) {
   const record = EXAMPLES[type];
   if (!record) return;
   document.getElementById('eval-input').value = JSON.stringify(record, null, 2);
-  evaluate();
+  runIrlEval();
 }
 
 // ── WASM LOADER ───────────────────────────────────────────────────────────────
@@ -1111,9 +1111,7 @@ async function loadWasm() {
 
 loadWasm();
 
-function evaluate() {
-  // diagnostic: confirm onclick fires
-  document.getElementById('eval-output').innerHTML = '<div class="t-line"><span class="t-ok"># evaluate() called — running engine...</span></div>';
+function runIrlEval() {
 
   const raw = document.getElementById('eval-input').value;
   const out = document.getElementById('eval-output');
@@ -1195,7 +1193,7 @@ function evaluate() {
     });
   } catch(e) {
     appendLine('eval-output', 't-err', '✗ Unexpected error: ' + e.message);
-    console.error('evaluate() crashed:', e);
+    console.error('runIrlEval() crashed:', e);
   }
 }
 
