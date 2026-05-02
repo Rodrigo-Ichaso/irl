@@ -1,4 +1,4 @@
-# IRL Firewall — Contexto completo para Claude en code-server
+# IRL — Contexto completo para Claude en code-server
 
 > Este archivo es para Claude. Rodrigo lo abrirá en su code-server
 > y continuará desde aquí. Leer completo antes de responder.
@@ -24,7 +24,7 @@ Paga en USDC vía Takenos. La Paz, Bolivia → clientes americanos.
 
 ## Qué es este proyecto
 
-**IRL Firewall** — Intent Record Language.
+**IRL** — Intent Record Language.
 
 Un protocolo y servidor de seguridad para agentes de IA. La capa que falta
 entre un agente de IA y la infraestructura que puede destruir.

@@ -1,9 +1,6 @@
 // irl-server/src/main.rs
-// IRL Firewall — HTTP server
+// IRL — Intent Record Language — HTTP server
 // Axum + Tokio + SQLite audit log + Telegram human gate
-//
-// cargo run --bin irl-firewall
-// TELEGRAM_TOKEN=xxx TELEGRAM_CHAT_ID=yyy cargo run
 
 use axum::{
     extract::State,
@@ -90,7 +87,7 @@ async fn send_telegram_gate(state: &AppState, result: &EvaluationResult) {
     let risk = &result.risk;
 
     let msg = format!(
-        "🔴 *IRL FIREWALL — HUMAN GATE*\n\n\
+        "🔴 *IRL — HUMAN GATE*\n\n\
         Agent: `{}`\n\
         Action: `{:?}` → `{}`\n\
         Env: *{:?}*\n\
@@ -126,9 +123,9 @@ async fn send_telegram_gate(state: &AppState, result: &EvaluationResult) {
 async fn health() -> Json<Value> {
     Json(json!({
         "status":  "ok",
-        "service": "IRL Firewall",
+        "service": "IRL — Intent Record Language",
         "version": "0.1.0",
-        "spec":    "https://github.com/alciom-cognitive/irl-firewall"
+        "spec":    "https://github.com/Rodrigo-Ichaso/irl"
     }))
 }
 
@@ -227,7 +224,7 @@ async fn main() {
     let port = env::var("IRL_PORT").unwrap_or("8800".into());
     let addr = format!("0.0.0.0:{}", port);
 
-    info!("IRL Firewall listening on {}", addr);
+    info!("IRL listening on {}", addr);
     info!("POST /evaluate  — evaluate an intent record");
     info!("GET  /audit     — recent audit log (last 50)");
     info!("GET  /health    — health check");

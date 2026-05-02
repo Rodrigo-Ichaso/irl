@@ -1,4 +1,4 @@
-# IRL Firewall — Guía de arranque
+# IRL — Guía de arranque
 
 ## Estructura del proyecto
 
@@ -89,7 +89,7 @@ curl -s http://localhost:8800/audit | python3 -m json.tool
 ```bash
 git init
 git add .
-git commit -m "feat: IRL Firewall v0.1 — intent record language for AI agent safety"
+git commit -m "feat: IRL v0.1 — intent record language for AI agent safety"
 
 # Crear repo en github.com primero, luego:
 git remote add origin https://github.com/TU_USUARIO/irl-firewall
@@ -116,7 +116,7 @@ sudo nano /etc/systemd/system/irl-firewall.service
 Contenido del servicio:
 ```ini
 [Unit]
-Description=IRL Firewall
+Description=IRL
 After=network.target
 
 [Service]

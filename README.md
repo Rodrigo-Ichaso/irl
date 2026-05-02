@@ -1,6 +1,6 @@
-# IRL Firewall 🔥
+# IRL — Intent Record Language
 
-**Intent Record Language — The trust layer between AI agents and your infrastructure.**
+**The trust layer between AI agents and your infrastructure.**
 
 > *"MCP solved transport. IRL solves trust."*
 
@@ -50,7 +50,7 @@ The firewall evaluates this deterministically — no LLM, no probabilities — a
 
 ```bash
 # Clone
-git clone https://github.com/alciom-cognitive/irl-firewall
+git clone https://github.com/Rodrigo-Ichaso/irl
 cd irl-firewall
 
 # Run tests
@@ -176,7 +176,7 @@ scp target/release/irl-firewall user@proxmox-vm:/usr/local/bin/
 # Run as systemd service
 cat > /etc/systemd/system/irl-firewall.service << EOF
 [Unit]
-Description=IRL Firewall
+Description=IRL
 After=network.target
 
 [Service]
@@ -200,7 +200,7 @@ systemctl enable --now irl-firewall
 
 ```
 ┌─────────────────────────────────────────┐
-│              IRL Firewall               │
+│              IRL               │
 │                                         │
 │  POST /evaluate                         │
 │       ↓                                 │
