@@ -525,7 +525,66 @@ body::before {
 
 <!-- LIVE EVALUATOR -->
 <div class="flow" id="evaluator" style="margin-top:48px">
-  <div class="flow-title">TRY IT — Paste any intent record</div>
+  <div class="flow-title">TRY IT — Pick an example or paste your own intent record</div>
+
+  <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+    <button onclick="loadExample('allow')" style="
+      padding:6px 14px;font-family:var(--mono);font-size:10px;letter-spacing:2px;
+      cursor:pointer;border:1px solid rgba(0,245,147,0.4);
+      background:rgba(0,245,147,0.05);color:var(--green);transition:all 0.2s;
+    " onmouseover="this.style.background='rgba(0,245,147,0.12)'"
+       onmouseout="this.style.background='rgba(0,245,147,0.05)'">✓ ALLOW — safe read</button>
+
+    <button onclick="loadExample('allow_prod')" style="
+      padding:6px 14px;font-family:var(--mono);font-size:10px;letter-spacing:2px;
+      cursor:pointer;border:1px solid rgba(0,245,147,0.4);
+      background:rgba(0,245,147,0.05);color:var(--green);transition:all 0.2s;
+    " onmouseover="this.style.background='rgba(0,245,147,0.12)'"
+       onmouseout="this.style.background='rgba(0,245,147,0.05)'">✓ ALLOW — prod read (verified)</button>
+
+    <button onclick="loadExample('log')" style="
+      padding:6px 14px;font-family:var(--mono);font-size:10px;letter-spacing:2px;
+      cursor:pointer;border:1px solid rgba(255,214,0,0.4);
+      background:rgba(255,214,0,0.05);color:var(--yellow);transition:all 0.2s;
+    " onmouseover="this.style.background='rgba(255,214,0,0.12)'"
+       onmouseout="this.style.background='rgba(255,214,0,0.05)'">⚠ LOG+ALLOW — staging write</button>
+
+    <button onclick="loadExample('log_network')" style="
+      padding:6px 14px;font-family:var(--mono);font-size:10px;letter-spacing:2px;
+      cursor:pointer;border:1px solid rgba(255,214,0,0.4);
+      background:rgba(255,214,0,0.05);color:var(--yellow);transition:all 0.2s;
+    " onmouseover="this.style.background='rgba(255,214,0,0.12)'"
+       onmouseout="this.style.background='rgba(255,214,0,0.05)'">⚠ LOG+ALLOW — external API call</button>
+
+    <button onclick="loadExample('gate')" style="
+      padding:6px 14px;font-family:var(--mono);font-size:10px;letter-spacing:2px;
+      cursor:pointer;border:1px solid rgba(255,140,0,0.4);
+      background:rgba(255,140,0,0.05);color:var(--orange);transition:all 0.2s;
+    " onmouseover="this.style.background='rgba(255,140,0,0.12)'"
+       onmouseout="this.style.background='rgba(255,140,0,0.05)'">⏸ GATE — prod write</button>
+
+    <button onclick="loadExample('gate_execute')" style="
+      padding:6px 14px;font-family:var(--mono);font-size:10px;letter-spacing:2px;
+      cursor:pointer;border:1px solid rgba(255,140,0,0.4);
+      background:rgba(255,140,0,0.05);color:var(--orange);transition:all 0.2s;
+    " onmouseover="this.style.background='rgba(255,140,0,0.12)'"
+       onmouseout="this.style.background='rgba(255,140,0,0.05)'">⏸ GATE — migration script</button>
+
+    <button onclick="loadExample('deny')" style="
+      padding:6px 14px;font-family:var(--mono);font-size:10px;letter-spacing:2px;
+      cursor:pointer;border:1px solid rgba(255,45,85,0.4);
+      background:rgba(255,45,85,0.05);color:var(--red);transition:all 0.2s;
+    " onmouseover="this.style.background='rgba(255,45,85,0.12)'"
+       onmouseout="this.style.background='rgba(255,45,85,0.05)'">⛔ DENY — Railway incident</button>
+
+    <button onclick="loadExample('deny_auth')" style="
+      padding:6px 14px;font-family:var(--mono);font-size:10px;letter-spacing:2px;
+      cursor:pointer;border:1px solid rgba(255,45,85,0.4);
+      background:rgba(255,45,85,0.05);color:var(--red);transition:all 0.2s;
+    " onmouseover="this.style.background='rgba(255,45,85,0.12)'"
+       onmouseout="this.style.background='rgba(255,45,85,0.05)'">⛔ DENY — rotate all API keys</button>
+  </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">
 
     <div style="background:var(--s1);border:1px solid var(--border);overflow:hidden">
@@ -832,6 +891,190 @@ function clearAudit() {
   document.getElementById('stat-gated').textContent   = '0';
   document.getElementById('stat-allowed').textContent = '0';
   renderAudit();
+}
+
+// ── EXAMPLES ─────────────────────────────────────────────────────────────────
+const EXAMPLES = {
+  allow: {
+    "irl_version": "0.1",
+    "agent": { "id": "n8n-workflow-03", "trust_level": "high" },
+    "operation": {
+      "type": "read",
+      "target_resource": "table:users",
+      "target_environment": "staging"
+    },
+    "rationale": {
+      "stated_goal": "Check user registration counts for analytics report",
+      "verified": true,
+      "alternatives_considered": ["query metrics endpoint"]
+    },
+    "consequences": {
+      "reversible": true,
+      "data_loss_risk": "none",
+      "affects_backups": false,
+      "rollback_plan": true
+    }
+  },
+  log: {
+    "irl_version": "0.1",
+    "agent": { "id": "claude-agent-02", "trust_level": "medium" },
+    "operation": {
+      "type": "write",
+      "target_resource": "table:config",
+      "target_environment": "staging"
+    },
+    "rationale": {
+      "stated_goal": "Update feature flag for A/B test rollout",
+      "verified": true,
+      "alternatives_considered": []
+    },
+    "consequences": {
+      "reversible": true,
+      "data_loss_risk": "none",
+      "affects_backups": false,
+      "rollback_plan": true
+    }
+  },
+  gate: {
+    "irl_version": "0.1",
+    "agent": { "id": "cursor-agent-01", "trust_level": "medium" },
+    "operation": {
+      "type": "write",
+      "target_resource": "table:users",
+      "target_environment": "production"
+    },
+    "rationale": {
+      "stated_goal": "Backfill missing timestamps in user records",
+      "verified": true,
+      "alternatives_considered": ["read-only migration preview"]
+    },
+    "consequences": {
+      "reversible": true,
+      "data_loss_risk": "none",
+      "affects_backups": false,
+      "rollback_plan": true
+    }
+  },
+  deny: {
+    "irl_version": "0.1",
+    "agent": { "id": "cursor-agent-01", "trust_level": "medium" },
+    "operation": {
+      "type": "delete",
+      "target_resource": "volume:prod-db-main",
+      "target_environment": "production"
+    },
+    "rationale": {
+      "stated_goal": "Fix credential mismatch in staging",
+      "verified": false,
+      "alternatives_considered": []
+    },
+    "consequences": {
+      "reversible": false,
+      "data_loss_risk": "total",
+      "affects_backups": true,
+      "rollback_plan": false
+    }
+  },
+
+  // ── NEW EXAMPLES ──────────────────────────────────────────────────────────
+  // Shows how trust_level:"verified" earns a -20 discount,
+  // bringing a production read below the MEDIUM threshold.
+  allow_prod: {
+    "irl_version": "0.1",
+    "agent": { "id": "monitoring-bot-01", "trust_level": "verified" },
+    "operation": {
+      "type": "read",
+      "target_resource": "table:orders",
+      "target_environment": "production"
+    },
+    "rationale": {
+      "stated_goal": "Hourly health check — verify order processing is not stalled",
+      "verified": true,
+      "alternatives_considered": ["check metrics dashboard", "query CloudWatch"]
+    },
+    "consequences": {
+      "reversible": true,
+      "data_loss_risk": "none",
+      "affects_backups": false,
+      "rollback_plan": true
+    }
+  },
+
+  // network call to external API in production → MEDIUM → LOG+ALLOW
+  // score: 25 (network) + 30 (prod) - 10 (high trust) = 45
+  log_network: {
+    "irl_version": "0.1",
+    "agent": { "id": "billing-agent-01", "trust_level": "high" },
+    "operation": {
+      "type": "network",
+      "target_resource": "api:stripe.com/v1/charges",
+      "target_environment": "production"
+    },
+    "rationale": {
+      "stated_goal": "Verify payment status for overdue invoice before retry",
+      "verified": true,
+      "alternatives_considered": ["check local payment_logs table"]
+    },
+    "consequences": {
+      "reversible": true,
+      "data_loss_risk": "none",
+      "affects_backups": false,
+      "rollback_plan": true
+    }
+  },
+
+  // execute type in production → HIGH → GATE
+  // score: 30 (execute) + 30 (prod) = 60
+  gate_execute: {
+    "irl_version": "0.1",
+    "agent": { "id": "devops-agent-01", "trust_level": "medium" },
+    "operation": {
+      "type": "execute",
+      "target_resource": "script:migrate-schema-v2.sql",
+      "target_environment": "production"
+    },
+    "rationale": {
+      "stated_goal": "Add index to orders.customer_id to fix slow queries",
+      "verified": true,
+      "alternatives_considered": ["partial index", "run on replica first"]
+    },
+    "consequences": {
+      "reversible": true,
+      "data_loss_risk": "none",
+      "affects_backups": false,
+      "rollback_plan": true
+    }
+  },
+
+  // auth operation, unverified, irreversible, no alternatives → CRITICAL → DENY
+  // score: 35 (auth) + 30 (prod) + 25 (irreversible) + 20 (unverified) + 15 (no alternatives) = 125 → capped 100
+  deny_auth: {
+    "irl_version": "0.1",
+    "agent": { "id": "security-bot-01", "trust_level": "low" },
+    "operation": {
+      "type": "auth",
+      "target_resource": "service:all-api-keys",
+      "target_environment": "production"
+    },
+    "rationale": {
+      "stated_goal": "Rotate all API keys after suspected breach",
+      "verified": false,
+      "alternatives_considered": []
+    },
+    "consequences": {
+      "reversible": false,
+      "data_loss_risk": "partial",
+      "affects_backups": false,
+      "rollback_plan": false
+    }
+  }
+};
+
+function loadExample(type) {
+  const record = EXAMPLES[type];
+  if (!record) return;
+  document.getElementById('eval-input').value = JSON.stringify(record, null, 2);
+  evaluate();
 }
 
 // ── WASM LOADER ───────────────────────────────────────────────────────────────
