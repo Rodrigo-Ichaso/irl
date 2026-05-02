@@ -1,32 +1,39 @@
 // irl-server/src/main.rs
 // IRL — Intent Record Language — HTTP server
-// Axum + Tokio + SQLite audit log + webhook human gate (Telegram fallback)
+// Axum + Tokio + SQLite audit log + trust registry + webhook human gate
 //
 // Copyright (c) 2026 Rodrigo Ichaso <https://linkedin.com/in/ichasorodrigo>
 
 use axum::{
-    extract::State,
-    http::StatusCode,
+    extract::{Path, State},
+    http::{HeaderMap, StatusCode},
     response::Json,
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use chrono::Utc;
-use irl_core::{evaluate, Decision, EvaluationResult, IntentRecord};
+use irl_core::{evaluate, Decision, EvaluationResult, IntentRecord, TrustLevel};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{env, sync::Arc};
 use tokio::sync::Mutex;
 use tokio_rusqlite::Connection;
 use tracing::{error, info, warn};
+use tokio_rusqlite::OptionalExtension;
 use tower_http::cors::CorsLayer;
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
 struct AppState {
-    db: Arc<Mutex<Connection>>,
+    db:               Arc<Mutex<Connection>>,
     gate_webhook_url: Option<String>,
-    telegram_token: Option<String>,
+    telegram_token:   Option<String>,
     telegram_chat_id: Option<String>,
+    admin_key:        Option<String>,
 }
+
+// ── DB INIT ───────────────────────────────────────────────────────────────────
 
 async fn init_db(conn: &Connection) {
     conn.call(|db| {
@@ -45,10 +52,56 @@ async fn init_db(conn: &Connection) {
                 requires_human INTEGER NOT NULL,
                 created_at     TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS agents (
+                agent_id      TEXT PRIMARY KEY,
+                trust_level   TEXT NOT NULL DEFAULT 'low',
+                note          TEXT,
+                registered_at TEXT NOT NULL
+            );
         ")?;
         Ok(())
     }).await.expect("Failed to initialize DB");
 }
+
+// ── TRUST REGISTRY ────────────────────────────────────────────────────────────
+
+// Look up the agent's trust level from the registry.
+// If the agent is not registered, returns Low — maximum scrutiny, no exceptions.
+async fn registered_trust(conn: &Arc<Mutex<Connection>>, agent_id: &str) -> TrustLevel {
+    let id = agent_id.to_string();
+    let db = conn.lock().await;
+    let result = db.call(move |db| {
+        let mut stmt = db.prepare(
+            "SELECT trust_level FROM agents WHERE agent_id = ?1"
+        )?;
+        let level = stmt.query_row([&id], |row| row.get::<_, String>(0))
+            .optional()?;
+        Ok(level)
+    }).await.unwrap_or(None);
+
+    match result.as_deref() {
+        Some("verified") => TrustLevel::Verified,
+        Some("high")     => TrustLevel::High,
+        Some("medium")   => TrustLevel::Medium,
+        _                => TrustLevel::Low,
+    }
+}
+
+// ── ADMIN AUTH ────────────────────────────────────────────────────────────────
+
+fn is_admin(headers: &HeaderMap, admin_key: &Option<String>) -> bool {
+    match admin_key {
+        None => false, // no key configured = admin endpoints disabled
+        Some(key) => headers
+            .get("x-admin-key")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v == key)
+            .unwrap_or(false),
+    }
+}
+
+// ── AUDIT LOG ─────────────────────────────────────────────────────────────────
 
 async fn log_evaluation(conn: &Arc<Mutex<Connection>>, result: &EvaluationResult) {
     let verdict_id  = result.verdict.verdict_id.to_string();
@@ -80,11 +133,12 @@ async fn log_evaluation(conn: &Arc<Mutex<Connection>>, result: &EvaluationResult
     }).await;
 }
 
+// ── GATE NOTIFICATION ─────────────────────────────────────────────────────────
+
 async fn send_gate_notification(state: &AppState, result: &EvaluationResult) {
     let ir   = &result.intent;
     let risk = &result.risk;
 
-    // Webhook first (developer-friendly, works with Slack / Discord / n8n / anything)
     if let Some(url) = &state.gate_webhook_url {
         let payload = json!({
             "event":      "irl.gate",
@@ -120,7 +174,6 @@ async fn send_gate_notification(state: &AppState, result: &EvaluationResult) {
         return;
     }
 
-    // Telegram fallback
     if let (Some(token), Some(chat_id)) = (&state.telegram_token, &state.telegram_chat_id) {
         let msg = format!(
             "🔴 *IRL — HUMAN GATE*\n\n\
@@ -160,6 +213,8 @@ async fn send_gate_notification(state: &AppState, result: &EvaluationResult) {
     warn!("GATE triggered but no notifier configured — set GATE_WEBHOOK_URL or TELEGRAM_TOKEN+TELEGRAM_CHAT_ID");
 }
 
+// ── HANDLERS ──────────────────────────────────────────────────────────────────
+
 async fn health() -> Json<Value> {
     Json(json!({
         "status":  "ok",
@@ -171,8 +226,19 @@ async fn health() -> Json<Value> {
 
 async fn evaluate_handler(
     State(state): State<AppState>,
-    Json(ir): Json<IntentRecord>,
+    Json(mut ir): Json<IntentRecord>,
 ) -> (StatusCode, Json<Value>) {
+
+    // Override self-declared trust level with the registry value.
+    // Unregistered agents always get Low — the agent cannot elevate itself.
+    let registry_trust = registered_trust(&state.db, &ir.agent.id).await;
+    if ir.agent.trust_level != registry_trust {
+        info!(
+            "Trust override for {}: {:?} → {:?} (registry)",
+            ir.agent.id, ir.agent.trust_level, registry_trust
+        );
+    }
+    ir.agent.trust_level = registry_trust;
 
     info!("Evaluating intent from agent: {} ({:?})", ir.agent.id, ir.operation.op_type);
 
@@ -238,6 +304,117 @@ async fn get_audit_log(State(state): State<AppState>) -> Json<Value> {
     Json(json!({ "count": rows.len(), "entries": rows }))
 }
 
+// ── AGENT REGISTRY ENDPOINTS ──────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct RegisterAgent {
+    agent_id:    String,
+    trust_level: String,
+    note:        Option<String>,
+}
+
+#[derive(Serialize)]
+struct AgentEntry {
+    agent_id:      String,
+    trust_level:   String,
+    note:          Option<String>,
+    registered_at: String,
+}
+
+async fn register_agent(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<RegisterAgent>,
+) -> (StatusCode, Json<Value>) {
+    if !is_admin(&headers, &state.admin_key) {
+        return (StatusCode::UNAUTHORIZED, Json(json!({"error": "x-admin-key required"})));
+    }
+
+    let valid_levels = ["low", "medium", "high", "verified"];
+    if !valid_levels.contains(&body.trust_level.as_str()) {
+        return (StatusCode::BAD_REQUEST, Json(json!({
+            "error": "trust_level must be: low | medium | high | verified"
+        })));
+    }
+
+    let agent_id    = body.agent_id.clone();
+    let trust_level = body.trust_level.clone();
+    let note        = body.note.clone();
+    let now         = Utc::now().to_rfc3339();
+
+    let db = state.db.lock().await;
+    let result = db.call(move |db| {
+        db.execute(
+            "INSERT INTO agents (agent_id, trust_level, note, registered_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(agent_id) DO UPDATE SET trust_level=excluded.trust_level, note=excluded.note",
+            rusqlite::params![agent_id, trust_level, note, now],
+        )?;
+        Ok(())
+    }).await;
+
+    match result {
+        Ok(_) => {
+            info!("Agent registered: {} → {}", body.agent_id, body.trust_level);
+            (StatusCode::OK, Json(json!({
+                "agent_id":    body.agent_id,
+                "trust_level": body.trust_level,
+                "registered":  true
+            })))
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))),
+    }
+}
+
+async fn list_agents(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> (StatusCode, Json<Value>) {
+    if !is_admin(&headers, &state.admin_key) {
+        return (StatusCode::UNAUTHORIZED, Json(json!({"error": "x-admin-key required"})));
+    }
+
+    let db = state.db.lock().await;
+    let agents = db.call(|db| {
+        let mut stmt = db.prepare(
+            "SELECT agent_id, trust_level, note, registered_at FROM agents ORDER BY registered_at DESC"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(AgentEntry {
+                agent_id:      row.get(0)?,
+                trust_level:   row.get(1)?,
+                note:          row.get(2)?,
+                registered_at: row.get(3)?,
+            })
+        })?.collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }).await.unwrap_or_default();
+
+    (StatusCode::OK, Json(json!({ "count": agents.len(), "agents": agents })))
+}
+
+async fn remove_agent(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(agent_id): Path<String>,
+) -> (StatusCode, Json<Value>) {
+    if !is_admin(&headers, &state.admin_key) {
+        return (StatusCode::UNAUTHORIZED, Json(json!({"error": "x-admin-key required"})));
+    }
+
+    let id = agent_id.clone();
+    let db = state.db.lock().await;
+    let _ = db.call(move |db| {
+        db.execute("DELETE FROM agents WHERE agent_id = ?1", [&id])?;
+        Ok(())
+    }).await;
+
+    info!("Agent removed from registry: {}", agent_id);
+    (StatusCode::OK, Json(json!({ "agent_id": agent_id, "removed": true })))
+}
+
+// ── MAIN ──────────────────────────────────────────────────────────────────────
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
@@ -248,17 +425,26 @@ async fn main() {
     let conn    = Connection::open(&db_path).await.expect("Cannot open SQLite DB");
     init_db(&conn).await;
 
+    let admin_key = env::var("IRL_ADMIN_KEY").ok();
+    if admin_key.is_none() {
+        warn!("IRL_ADMIN_KEY not set — agent registry endpoints are disabled");
+    }
+
     let state = AppState {
         db:               Arc::new(Mutex::new(conn)),
         gate_webhook_url: env::var("GATE_WEBHOOK_URL").ok(),
         telegram_token:   env::var("TELEGRAM_TOKEN").ok(),
         telegram_chat_id: env::var("TELEGRAM_CHAT_ID").ok(),
+        admin_key,
     };
 
     let app = Router::new()
-        .route("/health",   get(health))
-        .route("/evaluate", post(evaluate_handler))
-        .route("/audit",    get(get_audit_log))
+        .route("/health",        get(health))
+        .route("/evaluate",      post(evaluate_handler))
+        .route("/audit",         get(get_audit_log))
+        .route("/agents",        post(register_agent))
+        .route("/agents",        get(list_agents))
+        .route("/agents/:id",    delete(remove_agent))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -266,9 +452,12 @@ async fn main() {
     let addr = format!("0.0.0.0:{}", port);
 
     info!("IRL listening on {}", addr);
-    info!("POST /evaluate  — evaluate an intent record");
-    info!("GET  /audit     — recent audit log (last 50)");
-    info!("GET  /health    — health check");
+    info!("POST /evaluate       — evaluate an intent record");
+    info!("GET  /audit          — recent audit log (last 50)");
+    info!("GET  /health         — health check");
+    info!("POST /agents         — register agent trust level  [admin]");
+    info!("GET  /agents         — list registered agents      [admin]");
+    info!("DELETE /agents/:id   — remove agent from registry  [admin]");
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();

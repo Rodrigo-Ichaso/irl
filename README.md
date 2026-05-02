@@ -77,6 +77,35 @@ curl http://localhost:8800/audit
 
 ---
 
+## Trust Registry
+
+Agents cannot self-declare their trust level. The server maintains a registry — unregistered agents always get `low` trust regardless of what they claim.
+
+```bash
+# Register an agent (requires IRL_ADMIN_KEY)
+curl -X POST http://localhost:8800/agents \
+  -H "x-admin-key: your-admin-key" \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "cursor-agent-01", "trust_level": "medium", "note": "dev workstation"}'
+
+# List registered agents
+curl http://localhost:8800/agents \
+  -H "x-admin-key: your-admin-key"
+
+# Remove an agent (e.g. on offboarding)
+curl -X DELETE http://localhost:8800/agents/cursor-agent-01 \
+  -H "x-admin-key: your-admin-key"
+```
+
+An agent that submits `"trust_level": "verified"` in the intent record gets overridden to `low` if it's not in the registry. The trust override is logged.
+
+```bash
+# Start server with admin key
+IRL_ADMIN_KEY=your-secret-key cargo run --bin irl-server
+```
+
+---
+
 ## Human Gate
 
 When a HIGH risk operation is submitted, IRL pauses and notifies your team.
