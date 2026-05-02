@@ -3,7 +3,7 @@
 // Core types, risk engine, and policy evaluator.
 //
 // "MCP solved transport. IRL solves trust."
-// https://github.com/alciom-cognitive/irl-firewall
+// https://github.com/Rodrigo-Ichaso/irl
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

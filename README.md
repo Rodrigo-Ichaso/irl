@@ -51,13 +51,13 @@ The firewall evaluates this deterministically — no LLM, no probabilities — a
 ```bash
 # Clone
 git clone https://github.com/Rodrigo-Ichaso/irl
-cd irl-firewall
+cd irl
 
 # Run tests
 cargo test
 
 # Start server (port 8800)
-cargo run --bin irl-firewall
+cargo run --bin irl-server
 
 # Test with Railway incident scenario
 curl -X POST http://localhost:8800/evaluate \
@@ -85,7 +85,7 @@ When a HIGH risk operation is submitted, IRL pauses and notifies your team.
 
 ```bash
 GATE_WEBHOOK_URL=https://your-endpoint/hook \
-cargo run --bin irl-firewall
+cargo run --bin irl-server
 ```
 
 IRL POSTs this payload to your URL:
@@ -107,7 +107,7 @@ IRL POSTs this payload to your URL:
 ```bash
 TELEGRAM_TOKEN=your_bot_token \
 TELEGRAM_CHAT_ID=your_chat_id \
-cargo run --bin irl-firewall
+cargo run --bin irl-server
 ```
 
 ---
@@ -179,16 +179,16 @@ Deterministic scoring — not probabilistic. Every point is a policy decision.
 cargo build --release
 
 # Copy to VM
-scp target/release/irl-firewall user@proxmox-vm:/usr/local/bin/
+scp target/release/irl-server user@proxmox-vm:/usr/local/bin/
 
 # Run as systemd service
-cat > /etc/systemd/system/irl-firewall.service << EOF
+cat > /etc/systemd/system/irl-server.service << EOF
 [Unit]
 Description=IRL
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/irl-firewall
+ExecStart=/usr/local/bin/irl-server
 Environment=IRL_PORT=8800
 Environment=IRL_DB_PATH=/var/lib/irl/audit.db
 Environment=TELEGRAM_TOKEN=xxx
@@ -199,7 +199,7 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-systemctl enable --now irl-firewall
+systemctl enable --now irl-server
 ```
 
 ---

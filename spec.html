@@ -503,7 +503,7 @@ body::before {
   <span class="c-key">"risk"</span>: {
     <span class="c-key">"level"</span>: <span class="c-risk3">"critical"</span>,
     <span class="c-key">"score"</span>: <span class="c-num">97</span>,
-    <span class="c-key">"computed_by"</span>: <span class="c-str">"irl-firewall-v0.1"</span>
+    <span class="c-key">"computed_by"</span>: <span class="c-str">"irl-v0.1"</span>
   },
 
   <span class="c-comm">// FIREWALL decision</span>
@@ -624,7 +624,7 @@ body::before {
     <span class="sec-pill pill-code">CODE</span>
   </div>
 
-  <div class="py-block"><span class="py-comm"># irl_firewall.py — MVP mínimo, deployable en Proxmox hoy
+  <div class="py-block"><span class="py-comm"># irl_server.py — MVP mínimo, deployable en Proxmox hoy
 # pip install fastapi uvicorn httpx pydantic</span>
 
 <span class="py-kw">from</span> fastapi <span class="py-kw">import</span> FastAPI, HTTPException
@@ -759,7 +759,7 @@ Silence = auto-DENY."""</span>
         <span class="py-str">"timestamp"</span>: datetime.<span class="py-fn">utcnow</span>().<span class="py-fn">isoformat</span>()
     }
 
-<span class="py-comm"># uvicorn irl_firewall:app --host 0.0.0.0 --port 8800</span></div>
+<span class="py-comm"># uvicorn irl_server:app --host 0.0.0.0 --port 8800</span></div>
 </div>
 
 <!-- 06 ROADMAP -->

@@ -32,7 +32,7 @@ rustc --version   # debe mostrar 1.75+
 ## Paso 2 — Correr los tests del core
 
 ```bash
-cd irl-firewall
+cd irl
 cargo test -p irl-core
 ```
 
@@ -51,10 +51,10 @@ test result: ok. 3 passed; 0 failed
 
 ```bash
 # Sin Telegram (solo pruebas locales)
-cargo run --bin irl-firewall
+cargo run --bin irl-server
 
 # Con Telegram gate (para demo real)
-TELEGRAM_TOKEN=tu_token TELEGRAM_CHAT_ID=tu_chat_id cargo run --bin irl-firewall
+TELEGRAM_TOKEN=tu_token TELEGRAM_CHAT_ID=tu_chat_id cargo run --bin irl-server
 ```
 
 El server queda en: `http://localhost:8800`
@@ -92,7 +92,7 @@ git add .
 git commit -m "feat: IRL v0.1 — intent record language for AI agent safety"
 
 # Crear repo en github.com primero, luego:
-git remote add origin https://github.com/TU_USUARIO/irl-firewall
+git remote add origin https://github.com/TU_USUARIO/irl
 git push -u origin main
 ```
 
@@ -104,13 +104,13 @@ git push -u origin main
 ```bash
 # En tu máquina local, compilar release
 cargo build --release
-# Binario queda en: target/release/irl-firewall (sin extensión, ~5MB)
+# Binario queda en: target/release/irl-server (sin extensión, ~5MB)
 
 # Copiar a la VM
-scp target/release/irl-firewall usuario@IP-VM:/usr/local/bin/
+scp target/release/irl-server usuario@IP-VM:/usr/local/bin/
 
 # En la VM, crear servicio systemd
-sudo nano /etc/systemd/system/irl-firewall.service
+sudo nano /etc/systemd/system/irl-server.service
 ```
 
 Contenido del servicio:
@@ -120,7 +120,7 @@ Description=IRL
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/irl-firewall
+ExecStart=/usr/local/bin/irl-server
 Environment=IRL_PORT=8800
 Environment=IRL_DB_PATH=/var/lib/irl/audit.db
 Environment=TELEGRAM_TOKEN=xxx
@@ -134,19 +134,19 @@ WantedBy=multi-user.target
 
 ```bash
 sudo mkdir -p /var/lib/irl
-sudo systemctl enable --now irl-firewall
-sudo systemctl status irl-firewall
+sudo systemctl enable --now irl-server
+sudo systemctl status irl-server
 ```
 
 **Opción B — Docker en Proxmox:**
 ```bash
 # En el proyecto, crear Dockerfile (Claude te lo genera cuando llegues aquí)
-docker build -t irl-firewall .
+docker build -t irl-server .
 docker run -d -p 8800:8800 \
   -e TELEGRAM_TOKEN=xxx \
   -e TELEGRAM_CHAT_ID=yyy \
   -v /data/irl:/var/lib/irl \
-  irl-firewall
+  irl-server
 ```
 
 ---

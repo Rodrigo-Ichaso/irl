@@ -166,7 +166,7 @@ Override: production delete es siempre mínimo GATE sin importar score.
    - Opción A: binario directo en VM (systemd service)
    - Opción B: Docker container
    - Opción C: Docker Compose con reverse proxy
-5. **Crear GitHub repo** — `alciom-cognitive/irl-firewall`
+5. **Crear GitHub repo** — `Rodrigo-Ichaso/irl`
 6. **Publicar demo** — GitHub Pages con `demo.html`
 7. **Siguiente feature:** MCP server wrapper
 
@@ -190,7 +190,7 @@ TELEGRAM_CHAT_ID=yyy        # opcional, habilita gate
 cargo test -p irl-core
 
 # Levantar server
-cargo run --bin irl-firewall
+cargo run --bin irl-server
 
 # Caso Railway (en otra terminal) — debe retornar 403
 curl -s -X POST http://localhost:8800/evaluate \
@@ -213,7 +213,7 @@ curl -s http://localhost:8800/audit | python3 -m json.tool
 IRL no es solo un proyecto de Rodrigo. Es un protocolo abierto.
 
 - **irl-core**: spec + tipos, Apache 2.0, cualquiera lo implementa
-- **Alciom Shield**: producto comercial encima del protocolo
+- **IRL Shield**: producto comercial encima del protocolo
   - $2,500 setup + $400/mes monitoreo
   - Target: empresas que usan agentes de IA en producción
   - Timing: incidente Railway tiene 6.8M vistas en X, mercado asustado HOY

@@ -2,11 +2,11 @@
 name = "irl-server"
 version = "0.1.0"
 edition = "2021"
-description = "IRL Firewall HTTP server with Telegram human gate"
+description = "IRL server — HTTP API, audit log, human gate"
 license = "Apache-2.0"
 
 [[bin]]
-name = "irl-firewall"
+name = "irl-server"
 path = "src/main.rs"
 
 [dependencies]
