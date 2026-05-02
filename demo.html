@@ -373,7 +373,7 @@ body::before {
 <!-- HEADER -->
 <div class="header">
   <div class="header-tag">PROOF OF CONCEPT — v0.1</div>
-  <h1>IRL <span>Firewall</span></h1>
+  <h1><span>IRL</span></h1>
   <p class="header-sub">
     Intent Record Language — the trust layer between AI agents and your infrastructure.<br>
     Watch the Railway incident happen live. Then watch IRL stop it.
@@ -426,7 +426,7 @@ body::before {
   <div class="demo-panel">
     <div class="panel-header">
       <div class="panel-dot" style="background:var(--red)"></div>
-      <div class="panel-title">WITHOUT IRL FIREWALL</div>
+      <div class="panel-title">WITHOUT IRL</div>
       <div class="panel-badge badge-danger">VULNERABLE</div>
     </div>
     <div class="panel-body">
@@ -451,7 +451,7 @@ body::before {
   <div class="demo-panel">
     <div class="panel-header">
       <div class="panel-dot" style="background:var(--green)"></div>
-      <div class="panel-title">WITH IRL FIREWALL</div>
+      <div class="panel-title">WITH IRL</div>
       <div class="panel-badge badge-safe">PROTECTED</div>
     </div>
     <div class="panel-body">
@@ -521,6 +521,76 @@ body::before {
       </tr>
     </tbody>
   </table>
+</div>
+
+<!-- LIVE EVALUATOR -->
+<div class="flow" id="evaluator" style="margin-top:48px">
+  <div class="flow-title">TRY IT — Paste any intent record</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">
+
+    <div style="background:var(--s1);border:1px solid var(--border);overflow:hidden">
+      <div class="panel-header">
+        <div class="panel-dot" style="background:var(--blue)"></div>
+        <div class="panel-title">INTENT RECORD — JSON</div>
+      </div>
+      <div style="padding:16px">
+        <textarea id="eval-input" spellcheck="false" style="
+          width:100%;height:260px;background:var(--bg);border:1px solid var(--border);
+          color:var(--bright);font-family:var(--mono);font-size:11px;line-height:1.8;
+          padding:14px;resize:none;outline:none;
+        ">{
+  "irl_version": "0.1",
+  "agent": {
+    "id": "my-agent",
+    "trust_level": "medium"
+  },
+  "operation": {
+    "type": "delete",
+    "target_resource": "volume:prod-db-main",
+    "target_environment": "production"
+  },
+  "rationale": {
+    "stated_goal": "Fix credential mismatch",
+    "verified": false,
+    "alternatives_considered": []
+  },
+  "consequences": {
+    "reversible": false,
+    "data_loss_risk": "total",
+    "affects_backups": true,
+    "rollback_plan": false
+  }
+}</textarea>
+        <button onclick="evaluate()" style="
+          margin-top:10px;width:100%;padding:12px;
+          font-family:var(--mono);font-size:11px;letter-spacing:3px;
+          cursor:pointer;border:1px solid rgba(76,194,255,0.4);
+          background:rgba(76,194,255,0.05);color:var(--blue);
+          transition:all 0.2s;
+        " onmouseover="this.style.background='rgba(76,194,255,0.12)'"
+           onmouseout="this.style.background='rgba(76,194,255,0.05)'">
+          ▶ EVALUATE
+        </button>
+      </div>
+    </div>
+
+    <div style="background:var(--s1);border:1px solid var(--border);overflow:hidden">
+      <div class="panel-header">
+        <div class="panel-dot" style="background:var(--green)" id="eval-dot"></div>
+        <div class="panel-title">IRL VERDICT</div>
+        <div class="panel-badge" id="eval-badge" style="display:none"></div>
+      </div>
+      <div style="padding:16px">
+        <div class="terminal" id="eval-output" style="min-height:260px;max-height:260px">
+          <div class="t-line"><span class="t-dim"># Paste an intent record and click EVALUATE</span></div>
+          <div class="t-line"><span class="t-dim"># The risk engine runs entirely in your browser</span></div>
+          <div class="t-line"><span class="t-dim"># No server. No data sent anywhere.</span></div>
+        </div>
+        <div id="eval-result-box" class="result-box" style="margin-top:10px;font-size:15px"></div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <!-- FOOTER -->
@@ -761,6 +831,147 @@ function clearAudit() {
   document.getElementById('stat-gated').textContent   = '0';
   document.getElementById('stat-allowed').textContent = '0';
   renderAudit();
+}
+
+// ── LIVE RISK ENGINE (mirrors Rust irl-core exactly) ─────────────────────────
+function computeRisk(record) {
+  let score = 0;
+  const reasons = [];
+  const op   = (record.operation || {});
+  const rat  = (record.rationale || {});
+  const cons = (record.consequences || {});
+  const agent = (record.agent || {});
+
+  const opType = (op.type || '').toLowerCase();
+  const env    = (op.target_environment || '').toLowerCase();
+  const trust  = (agent.trust_level || '').toLowerCase();
+
+  if (opType === 'delete')                        { score += 50; }
+  else if (opType === 'write')                    { score += 20; }
+  else if (['execute','network','auth'].includes(opType)) { score += 10; }
+
+  if (env === 'production')                       { score += 30; }
+  else if (env === 'staging')                     { score += 10; }
+
+  if (cons.reversible === false)                  { score += 25; reasons.push('irreversible operation'); }
+  if (rat.verified === false)                     { score += 20; reasons.push('assumption not verified'); }
+  if (!rat.alternatives_considered || rat.alternatives_considered.length === 0)
+                                                  { score += 15; reasons.push('no alternatives considered'); }
+  if (cons.affects_backups === true)              { score += 30; reasons.push('affects backup systems'); }
+  if (opType === 'delete' && cons.rollback_plan === false)
+                                                  { score += 20; reasons.push('delete without rollback plan'); }
+  if (cons.data_loss_risk === 'total')            { score += 25; reasons.push('total data loss risk'); }
+  else if (cons.data_loss_risk === 'partial')     { score += 10; }
+
+  if (trust === 'verified')                       { score -= 20; }
+  else if (trust === 'high')                      { score -= 10; }
+
+  if (env === 'production')                       { reasons.unshift('production environment'); }
+
+  score = Math.max(0, Math.min(100, score));
+
+  let level, decision, policy;
+  if (score >= 75)      { level = 'CRITICAL'; decision = 'DENY';      policy = 'POL-003'; }
+  else if (score >= 50) { level = 'HIGH';     decision = 'GATE';      policy = 'POL-002'; }
+  else if (score >= 25) { level = 'MEDIUM';   decision = 'LOG+ALLOW'; policy = 'POL-001'; }
+  else                  { level = 'LOW';      decision = 'ALLOW';     policy = 'POL-000'; }
+
+  // Override: production delete → minimum GATE
+  if (opType === 'delete' && env === 'production' && decision === 'ALLOW') {
+    decision = 'GATE'; policy = 'POL-002'; level = 'HIGH';
+  }
+
+  return { score, level, decision, policy, reasons,
+           resource: op.target_resource || '(unspecified)',
+           environment: env || '(unspecified)',
+           opType, agent: agent.id || 'unknown' };
+}
+
+function evaluate() {
+  const raw = document.getElementById('eval-input').value;
+  const out = document.getElementById('eval-output');
+  const box = document.getElementById('eval-result-box');
+  const dot = document.getElementById('eval-dot');
+  const badge = document.getElementById('eval-badge');
+
+  out.innerHTML = '';
+  box.style.display = 'none';
+
+  let record;
+  try { record = JSON.parse(raw); }
+  catch(e) {
+    appendLine('eval-output', 't-err', '✗ Invalid JSON: ' + e.message);
+    return;
+  }
+
+  const r = computeRisk(record);
+  const ts = now();
+
+  // Build scoring breakdown
+  const opScore  = r.opType === 'delete' ? 50 : r.opType === 'write' ? 20 :
+                   ['execute','network','auth'].includes(r.opType) ? 10 : 0;
+  const envScore = r.environment === 'production' ? 30 : r.environment === 'staging' ? 10 : 0;
+  const irrScore = record.consequences?.reversible === false ? 25 : 0;
+  const verScore = record.rationale?.verified === false ? 20 : 0;
+  const altScore = (!record.rationale?.alternatives_considered || record.rationale.alternatives_considered.length === 0) ? 15 : 0;
+  const bakScore = record.consequences?.affects_backups === true ? 30 : 0;
+  const rolScore = (r.opType === 'delete' && record.consequences?.rollback_plan === false) ? 20 : 0;
+  const dlrScore = record.consequences?.data_loss_risk === 'total' ? 25 : record.consequences?.data_loss_risk === 'partial' ? 10 : 0;
+  const trstScore = record.agent?.trust_level === 'verified' ? -20 : record.agent?.trust_level === 'high' ? -10 : 0;
+
+  const lines = [
+    ['t-out',  `[irl]  agent:       ${r.agent}`],
+    ['t-out',  `[irl]  operation:   ${r.opType} → ${r.resource}`],
+    ['t-out',  `[irl]  environment: ${r.environment}`],
+    ['t-dim',  ''],
+    ['t-warn', '[irl]  ── RISK ENGINE ───────────────────'],
+  ];
+  if (opScore)   lines.push(['t-warn', `[irl]  +${String(opScore).padStart(2)}  operation: ${r.opType}`]);
+  if (envScore)  lines.push(['t-warn', `[irl]  +${String(envScore).padStart(2)}  environment: ${r.environment}`]);
+  if (irrScore)  lines.push(['t-warn', `[irl]  +${String(irrScore).padStart(2)}  irreversible`]);
+  if (verScore)  lines.push(['t-warn', `[irl]  +${String(verScore).padStart(2)}  assumption not verified`]);
+  if (altScore)  lines.push(['t-warn', `[irl]  +${String(altScore).padStart(2)}  no alternatives`]);
+  if (bakScore)  lines.push(['t-warn', `[irl]  +${String(bakScore).padStart(2)}  affects backups`]);
+  if (rolScore)  lines.push(['t-warn', `[irl]  +${String(rolScore).padStart(2)}  no rollback plan`]);
+  if (dlrScore)  lines.push(['t-warn', `[irl]  +${String(dlrScore).padStart(2)}  data loss risk: ${record.consequences?.data_loss_risk}`]);
+  if (trstScore) lines.push(['t-ok',   `[irl]  ${trstScore}  trust: ${record.agent?.trust_level}`]);
+  lines.push(['t-dim', '']);
+
+  const scoreClass = r.level === 'CRITICAL' ? 't-err' : r.level === 'HIGH' ? 't-gate' : r.level === 'MEDIUM' ? 't-warn' : 't-ok';
+  lines.push([scoreClass, `[irl]  SCORE:    ${r.score}/100 — ${r.level}`]);
+  lines.push([scoreClass, `[irl]  POLICY:   ${r.policy}`]);
+  lines.push([scoreClass, `[irl]  DECISION: ${r.decision}`]);
+
+  lines.forEach(([cls, txt]) => {
+    if (!txt) { appendBlank('eval-output'); return; }
+    appendLine('eval-output', cls, txt);
+  });
+
+  // Result box
+  const colors = { DENY:'var(--red)', GATE:'var(--orange)', 'LOG+ALLOW':'var(--yellow)', ALLOW:'var(--green)' };
+  const icons  = { DENY:'⛔', GATE:'⏸', 'LOG+ALLOW':'⚠', ALLOW:'✅' };
+  const col = colors[r.decision] || 'var(--text)';
+  box.style.display = 'block';
+  box.style.borderColor = col;
+  box.style.color = col;
+  box.style.background = col.replace(')', ',0.06)').replace('var(', 'rgba(').replace(/var\(--\w+\)/, col);
+  box.textContent = `${icons[r.decision] || ''} ${r.decision}`;
+
+  dot.style.background = col;
+  badge.style.display = 'inline-block';
+  badge.textContent = `${r.score}/100 ${r.level}`;
+  badge.style.color = col;
+  badge.style.borderColor = col.replace(')', ',0.4)').replace('var(','rgba(');
+
+  // Add to audit log
+  addAuditEntry({
+    time: ts, agent: r.agent,
+    operation: `${r.opType.toUpperCase()} → ${r.resource}`,
+    environment: r.environment,
+    riskLevel: r.level, score: r.score,
+    decision: r.decision,
+    reason: r.reasons.slice(0,2).join(', ') || 'safe operation'
+  });
 }
 
 // Seed some demo audit entries

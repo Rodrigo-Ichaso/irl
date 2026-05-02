@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "irl": {
+      "command": "node",
+      "args": ["/root/workspace/IRL/irl-firewall/irl-mcp/dist/index.js"],
+      "env": {
+        "IRL_URL": "http://192.168.0.8:8800",
+        "IRL_AGENT_ID": "claude-code",
+        "IRL_AGENT_TRUST": "medium"
+      }
+    }
+  }
+}
