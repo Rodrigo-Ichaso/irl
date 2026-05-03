@@ -4,6 +4,8 @@
 
 > *"MCP solved transport. IRL makes agents accountable."*
 
+**→ [Live Demo](https://rodrigo-ichaso.github.io/irl/demo.html) · [Spec](https://rodrigo-ichaso.github.io/irl/spec.html) · [GitHub](https://github.com/Rodrigo-Ichaso/irl)**
+
 ---
 
 ## The Problem
@@ -43,6 +45,18 @@ The firewall evaluates this deterministically — no LLM, no probabilities — a
 | `LOG+ALLOW` | Approved with monitoring |
 | `GATE` | Paused — human approval required (webhook / Telegram) |
 | `DENY` | Blocked — critical risk auto-denied |
+
+---
+
+## Build Artifacts
+
+The `target/` directory (Rust build cache, ~1.7GB) is excluded from git and can be safely deleted to free space. Regenerate with:
+
+```bash
+cargo build          # debug build
+cargo build --release  # production binary
+cargo test           # run tests (also builds)
+```
 
 ---
 
