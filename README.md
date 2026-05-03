@@ -273,6 +273,23 @@ Deterministic scoring — not probabilistic. Every point is a policy decision.
 
 ---
 
+## API Reference
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/health` | Health check |
+| POST | `/evaluate` | Evaluate an intent record |
+| GET | `/audit` | Last 50 audit log entries |
+
+| Verdict | HTTP | Meaning |
+|---------|------|---------|
+| ALLOW | 200 OK | Auto-approved |
+| LOG+ALLOW | 200 OK | Approved with monitoring |
+| GATE | 202 Accepted | Pending human approval |
+| DENY | 403 Forbidden | Auto-blocked |
+
+---
+
 ## Deploy on Proxmox
 
 ```bash
@@ -301,6 +318,16 @@ WantedBy=multi-user.target
 EOF
 
 systemctl enable --now irl-server
+```
+
+**Option B — Docker:**
+```bash
+docker build -t irl-server .
+docker run -d -p 8800:8800 \
+  -e TELEGRAM_TOKEN=xxx \
+  -e TELEGRAM_CHAT_ID=yyy \
+  -v /data/irl:/var/lib/irl \
+  irl-server
 ```
 
 ---
