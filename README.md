@@ -387,3 +387,14 @@ Copyright (c) 2026 Rodrigo Ichaso. Attribution required on all distributions and
 **Built by [Rodrigo Ichaso](https://linkedin.com/in/ichasorodrigo) — La Paz, Bolivia**
 
 *Incident reference: PocketOS/Railway, April 24, 2026*
+
+---
+
+## Support this project
+
+If IRL is useful to you, you can support it with SOL:
+
+<div align="center">
+  <img src="sol-qr.png" width="160" alt="Solana QR"><br>
+  <code>NC3zNzcx9gDMYWB2AQDTptbA66DJ4oWd7RBHgaJvEMC</code>
+</div>
