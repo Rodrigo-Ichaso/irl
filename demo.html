@@ -661,6 +661,15 @@ body::before {
 </div>
 
 <!-- FOOTER -->
+<div style="text-align:center; padding: 40px 20px 20px; border-top: 1px solid rgba(255,255,255,0.07);">
+  <div style="font-family:var(--display); font-size:13px; color:var(--text); letter-spacing:0.08em; margin-bottom:16px; text-transform:uppercase;">Support this project</div>
+  <div style="display:inline-block; background:#0f1117; border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:20px 28px;">
+    <canvas id="sol-qr" style="display:block; margin:0 auto 12px;"></canvas>
+    <div style="font-size:11px; color:var(--green); letter-spacing:0.05em; margin-bottom:4px;">SOLANA (SOL)</div>
+    <div style="font-size:9px; color:var(--text); word-break:break-all; max-width:200px; opacity:0.6; font-family:monospace;">NC3zNzcx9gDMYWB2AQDTptbA66DJ4oWd7RBHgaJvEMC</div>
+  </div>
+</div>
+
 <div class="footer">
   <div class="footer-brand">IRL<br>SHIELD</div>
   <div class="footer-links">
@@ -669,6 +678,15 @@ body::before {
     <a href="https://linkedin.com/in/ichasorodrigo" style="color:var(--blue)">Rodrigo Ichaso</a> — La Paz, Bolivia
   </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script>
+  QRCode.toCanvas(document.getElementById('sol-qr'),
+    'solana:NC3zNzcx9gDMYWB2AQDTptbA66DJ4oWd7RBHgaJvEMC',
+    { width: 160, margin: 2, color: { dark: '#00ff88', light: '#0f1117' } },
+    function(err) { if(err) console.error(err); }
+  );
+</script>
 
 </div>
 
